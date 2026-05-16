@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import CloudIdeLayout from "@/components/workspace/cloud-ide-layout";
-import { sendMessage, getSession } from "@/lib/api";
+import SettingsModal from "@/components/layout/settings-modal";
+import { sendMessage, getSession, switchMode } from "@/lib/api";
 import { useSessionEvents } from "@/hooks/use-session-events";
 import type {
   SessionMode,
@@ -11,6 +12,13 @@ import type {
   ChatMessage,
   CheckRun,
   FileChange,
+  TestRunPayload,
+  RestorePointPayload,
+  AgentRunPayload,
+  ApprovalPayload,
+  IdeStatus,
+  PreviewStatus,
+  FinalReportPayload,
 } from "@/types";
 
 export default function SessionWorkspacePage() {
@@ -20,63 +28,59 @@ export default function SessionWorkspacePage() {
 
   const [mode, setMode] = useState<SessionMode>("AGENT");
   const [status, setStatus] = useState<SessionStatus>("created");
-  const [workspaceUrl, setWorkspaceUrl] = useState<string>("");
+  const [projectName, setProjectName] = useState("");
+  const [branchName, setBranchName] = useState("");
+  const [ideUrl, setIdeUrl] = useState<string>("");
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [ideStatus, setIdeStatus] = useState<IdeStatus>("disabled");
+  const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("disabled");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [checks, setChecks] = useState<CheckRun[]>([]);
   const [fileChanges, setFileChanges] = useState<FileChange[]>([]);
   const [logs, setLogs] = useState<string[]>([
     `[${new Date().toLocaleTimeString()}] SSE ${connected ? "connected" : "disconnected"}`,
   ]);
+  const [testRuns, setTestRuns] = useState<TestRunPayload[]>([]);
+  const [restorePoints, setRestorePoints] = useState<RestorePointPayload[]>([]);
+  const [agentRuns, setAgentRuns] = useState<AgentRunPayload[]>([]);
+  const [approvals, setApprovals] = useState<ApprovalPayload[]>([]);
+  const [finalReport, setFinalReport] = useState<FinalReportPayload | undefined>(undefined);
+  const [activeModel, setActiveModel] = useState<string | undefined>(undefined);
+  const [activePromptVersion, setActivePromptVersion] = useState<string | undefined>(undefined);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const load = useCallback(() => {
     getSession(sessionId)
-      .then(({ session }: any) => {
-        setMode(session.mode as SessionMode);
-        setStatus(session.status as SessionStatus);
-        setWorkspaceUrl(session.workspaceUrl || "");
-        setMessages(
-          session.messages?.map((m: any) => ({
-            id: m.id,
-            sessionId: m.sessionId,
-            role: m.role,
-            content: m.content,
-            mode: m.mode as SessionMode,
-            createdAt: m.createdAt,
-          })) || []
-        );
-        setChecks(
-          session.checkRuns?.map((c: any) => ({
-            id: c.id,
-            sessionId: c.sessionId,
-            type: c.type,
-            status: c.status,
-            command: c.command,
-            stdout: c.stdout,
-            stderr: c.stderr,
-            createdAt: c.createdAt,
-          })) || []
-        );
-        setFileChanges(
-          session.fileChanges?.map((f: any) => ({
-            id: f.id,
-            sessionId: f.sessionId,
-            filePath: f.filePath,
-            operation: f.operation,
-            diff: f.diff,
-            createdAt: f.createdAt,
-          })) || []
-        );
+      .then(({ session }) => {
+        setMode(session.mode);
+        setStatus(session.status);
+        setProjectName(session.projectName);
+        setBranchName(session.branchName || "");
+        setIdeUrl(session.ideUrl || "");
+        setPreviewUrl(session.previewUrl || "");
+        setIdeStatus(session.ideStatus || "disabled");
+        setPreviewStatus(session.previewStatus || "disabled");
+        setMessages(session.messages || []);
+        setChecks([]); // derived from testRuns or kept empty if unused
+        setFileChanges([]); // populate from session if available
+        setTestRuns(session.testRuns || []);
+        setRestorePoints(session.restorePoints || []);
+        setAgentRuns(session.agentRuns || []);
+        setApprovals(session.approvals || []);
+        setFinalReport(session.finalReport);
+        setActiveModel(session.activeModel);
+        setActivePromptVersion(session.activePromptVersion);
         setLoading(false);
       })
       .catch((e: any) => {
-        setError(e.message);
+        setError(e.message || "Failed to load session");
         setLoading(false);
       });
   }, [sessionId]);
 
-  // Load session from API on mount and poll
   useEffect(() => {
     let cancelled = false;
     load();
@@ -89,7 +93,6 @@ export default function SessionWorkspacePage() {
     };
   }, [load]);
 
-  // React to SSE events
   useEffect(() => {
     if (events.length === 0) return;
     const latest = events[events.length - 1];
@@ -169,20 +172,25 @@ export default function SessionWorkspacePage() {
     }
   };
 
-  const handleModeChange = (newMode: SessionMode) => {
-    setMode(newMode);
-    setLogs((prev) => [
-      ...prev,
-      `[${new Date().toLocaleTimeString()}] Mode changed to ${newMode}`,
-    ]);
+  const handleModeChange = async (newMode: SessionMode) => {
+    try {
+      await switchMode(sessionId, newMode);
+      setMode(newMode);
+      setLogs((prev) => [
+        ...prev,
+        `[${new Date().toLocaleTimeString()}] Mode changed to ${newMode}`,
+      ]);
+    } catch (e: any) {
+      setLogs((prev) => [...prev, `Failed to switch mode: ${e.message}`]);
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <div className="text-center space-y-4">
-          <div className="w-8 h-8 border-2 border-zinc-600 border-t-white rounded-full animate-spin mx-auto" />
-          <p className="text-zinc-400">Loading session...</p>
+          <div className="w-8 h-8 border-2 border-border border-t-foreground rounded-full animate-spin mx-auto" />
+          <p className="text-muted-foreground text-sm">Loading session...</p>
         </div>
       </div>
     );
@@ -190,10 +198,10 @@ export default function SessionWorkspacePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <div className="text-center space-y-4 max-w-md">
-          <p className="text-red-400">{error}</p>
-          <a href="/" className="text-white underline">
+          <p className="text-destructive text-sm">{error}</p>
+          <a href="/" className="text-foreground underline text-sm">
             Return to home
           </a>
         </div>
@@ -202,19 +210,33 @@ export default function SessionWorkspacePage() {
   }
 
   return (
-    <CloudIdeLayout
-      title={`Session: ${sessionId.slice(0, 8)}`}
-      workspaceUrl={workspaceUrl || undefined}
-      sessionId={sessionId}
-      mode={mode}
-      status={status}
-      messages={messages}
-      checks={checks}
-      fileChanges={fileChanges}
-      logs={logs}
-      onSendMessage={handleSendMessage}
-      onModeChange={handleModeChange}
-      onReload={load}
-    />
+    <>
+      <CloudIdeLayout
+        title={`Session: ${sessionId.slice(0, 8)}`}
+        projectName={projectName}
+        branchName={branchName}
+        ideUrl={ideUrl || undefined}
+        previewUrl={previewUrl || undefined}
+        ideStatus={ideStatus}
+        previewStatus={previewStatus}
+        mode={mode}
+        status={status}
+        messages={messages}
+        checks={checks}
+        fileChanges={fileChanges}
+        logs={logs}
+        testRuns={testRuns}
+        restorePoints={restorePoints}
+        agentRuns={agentRuns}
+        approvals={approvals}
+        activeModel={activeModel}
+        activePromptVersion={activePromptVersion}
+        onSendMessage={handleSendMessage}
+        onModeChange={handleModeChange}
+        onReload={load}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    </>
   );
 }

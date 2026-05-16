@@ -1,10 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession, signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Clock, Activity, Code2, GitBranch, ArrowRight, LogIn } from "lucide-react";
-import { getHealth, getModelHealth, getAgentHealth } from "@/lib/api";
+import {
+  Plus,
+  Clock,
+  MessageSquare,
+  LayoutTemplate,
+  Settings,
+  Cpu,
+  GitBranch,
+  User,
+  Sparkles,
+  ArrowRight,
+  FolderOpen,
+  Zap,
+  Hash,
+} from "lucide-react";
+import { createSession, startSession, getProjects, getHealth, getModelHealth, getAgentHealth } from "@/lib/api";
+import type { SessionMode } from "@/types";
 
 interface SessionSummary {
   id: string;
@@ -14,12 +29,23 @@ interface SessionSummary {
   updatedAt: string;
 }
 
+const examplePrompts = [
+  "Build a task management dashboard with teams and deadlines",
+  "Create a REST API with user authentication and role-based access",
+  "Generate a responsive portfolio website with dark mode",
+  "Set up a Next.js app with Prisma, Tailwind, and NextAuth",
+];
+
 export default function HomePage() {
-  const { data: session } = useSession();
+  const router = useRouter();
+  const [prompt, setPrompt] = useState("");
+  const [mode, setMode] = useState<SessionMode>("AGENT");
+  const [repoUrl, setRepoUrl] = useState("");
+  const [projectType, setProjectType] = useState("");
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
-  const [stats, setStats] = useState({ total: 0, completed: 0, failed: 0 });
   const [health, setHealth] = useState({ web: false, model: false, agent: false });
   const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -30,12 +56,7 @@ export default function HomePage() {
     ])
       .then(([sessionsData, _web, model, agent]) => {
         const all = sessionsData.sessions || [];
-        setSessions(all.slice(0, 5));
-        setStats({
-          total: all.length,
-          completed: all.filter((s: SessionSummary) => s.status === "completed").length,
-          failed: all.filter((s: SessionSummary) => s.status === "failed").length,
-        });
+        setSessions(all.slice(0, 6));
         setHealth({
           web: true,
           model: model?.configured || false,
@@ -46,156 +67,205 @@ export default function HomePage() {
       .catch(() => setLoading(false));
   }, []);
 
+  const handleStart = async () => {
+    if (!prompt.trim()) return;
+    setStarting(true);
+    try {
+      const { session } = await createSession({
+        userPrompt: prompt,
+        mode,
+        repoUrl: repoUrl || undefined,
+      });
+      await startSession(session.id);
+      router.push(`/sessions/${session.id}`);
+    } catch {
+      setStarting(false);
+    }
+  };
+
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
-      {/* Hero */}
-      <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 px-6 py-20 text-center">
-        <h1 className="text-5xl font-bold tracking-tight mb-4">Metl-VibeCoder</h1>
-        <p className="text-xl text-zinc-400 mb-2">
-          AI coding workspace powered by Gemini.
-        </p>
-        <p className="text-zinc-500 mb-8 max-w-xl mx-auto">
-          Understand, generate, verify, repair, and explain code — all in one browser IDE.
-        </p>
-
-        <div className="flex justify-center gap-4 mb-8">
-          {session?.user ? (
-            <>
-              <Link
-                href="/sessions/new"
-                className="rounded-lg bg-white text-black px-6 py-3 font-semibold hover:bg-zinc-200 transition-colors flex items-center gap-2"
-              >
-                <Plus size={18} />
-                New Workspace
-              </Link>
-              <Link
-                href="/projects"
-                className="rounded-lg border border-zinc-700 px-6 py-3 font-semibold hover:bg-zinc-800 transition-colors"
-              >
-                Projects
-              </Link>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => signIn("github", { callbackUrl: "/" })}
-                className="rounded-lg bg-white text-black px-6 py-3 font-semibold hover:bg-zinc-200 transition-colors flex items-center gap-2"
-              >
-                <LogIn size={18} />
-                Sign in with GitHub
-              </button>
-              <Link
-                href="/sessions/new"
-                className="rounded-lg border border-zinc-700 px-6 py-3 font-semibold hover:bg-zinc-800 transition-colors"
-              >
-                Try as Guest
-              </Link>
-            </>
-          )}
-        </div>
-
-        {/* Provider Status */}
-        <div className="flex justify-center gap-6 text-xs text-zinc-400">
-          <StatusBadge label="Web" ok={health.web} />
-          <StatusBadge label="Gemini" ok={health.model} />
-          <StatusBadge label="Agent" ok={health.agent} />
-        </div>
-      </div>
-
-      {/* Stats + Quick Actions */}
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-          {[
-            { label: "Total Sessions", value: stats.total, icon: Activity },
-            { label: "Completed", value: stats.completed, icon: Code2 },
-            { label: "Failed", value: stats.failed, icon: Clock },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 flex items-center justify-between"
-            >
-              <div>
-                <p className="text-xs text-zinc-500 uppercase tracking-wide">{s.label}</p>
-                <p className="text-2xl font-bold mt-1">{s.value}</p>
-              </div>
-              <s.icon size={24} className="text-zinc-600" />
-            </div>
-          ))}
-        </div>
-
-        {/* Recent Sessions */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold">Recent Sessions</h2>
-          <Link href="/sessions" className="text-sm text-zinc-400 hover:text-white flex items-center gap-1">
-            View all <ArrowRight size={14} />
+    <div className="min-h-screen bg-background text-foreground flex">
+      {/* Left Sidebar */}
+      <aside className="w-14 md:w-60 flex-shrink-0 flex flex-col h-screen bg-card border-r border-border">
+        <div className="h-9 flex items-center justify-between px-3 border-b border-border">
+          <Link href="/" className="hidden md:flex items-center gap-2 text-sm font-bold">
+            <Sparkles size={16} className="text-primary" />
+            <span>MetlCode</span>
           </Link>
+          <Sparkles size={16} className="md:hidden text-primary mx-auto" />
         </div>
-
-        {loading ? (
-          <div className="text-zinc-500 text-center py-8">Loading...</div>
-        ) : sessions.length === 0 ? (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-8 text-center">
-            <Activity size={32} className="text-zinc-600 mx-auto mb-3" />
-            <p className="text-zinc-400">No sessions yet.</p>
-            <p className="text-sm text-zinc-500 mt-1">
-              Start by creating a new workspace.
+        <div className="flex-1 overflow-y-auto py-2 space-y-0.5">
+          <SidebarItem icon={<Plus size={16} />} label="New Project" href="/sessions/new" />
+          <SidebarItem icon={<FolderOpen size={16} />} label="Projects" href="/sessions" />
+          <SidebarItem icon={<MessageSquare size={16} />} label="Chats" href="/sessions" />
+          <SidebarItem icon={<LayoutTemplate size={16} />} label="Templates" href="/sessions/new" />
+          <div className="pt-3 px-3 pb-1">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold hidden md:block">
+              Recent Sessions
             </p>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {sessions.map((s) => (
+          {loading ? (
+            <div className="px-3 text-xs text-muted-foreground hidden md:block">Loading...</div>
+          ) : (
+            sessions.map((s) => (
               <Link
                 key={s.id}
                 href={`/sessions/${s.id}`}
-                className="block rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 hover:bg-zinc-900 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded mx-1 truncate"
+                title={s.userPrompt}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">
-                    {s.mode}
-                  </span>
-                  <span className="text-xs text-zinc-500 flex items-center gap-1">
-                    <Clock size={12} />
-                    {new Date(s.updatedAt).toLocaleDateString()}
-                  </span>
-                </div>
-                <p className="text-sm text-zinc-300 truncate">{s.userPrompt}</p>
-                <p className="text-xs text-zinc-500 mt-1 capitalize">
-                  Status: {s.status.replace(/_/g, " ")}
-                </p>
+                <Clock size={12} />
+                <span className="hidden md:inline truncate">{s.userPrompt}</span>
               </Link>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Modes explanation */}
-      <div className="max-w-4xl mx-auto px-6 pb-16">
-        <h2 className="text-xl font-semibold mb-4">Modes</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-            { title: "Ask", desc: "Understand the repo without editing." },
-            { title: "Plan", desc: "Get an implementation plan before building." },
-            { title: "Agent", desc: "Build automatically with checks and repair." },
-          ].map((mode) => (
-            <div
-              key={mode.title}
-              className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-6"
-            >
-              <h3 className="text-lg font-semibold mb-2">{mode.title}</h3>
-              <p className="text-sm text-zinc-400">{mode.desc}</p>
-            </div>
-          ))}
+            ))
+          )}
         </div>
-      </div>
-    </main>
+        <div className="border-t border-border py-2 space-y-0.5">
+          <SidebarItem icon={<Settings size={16} />} label="Settings" href="/settings" />
+          <SidebarItem icon={<User size={16} />} label="Profile" href="/settings" />
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+        {/* Top right bar */}
+        <div className="h-9 flex items-center justify-between px-4 border-b border-border bg-card">
+          <div />
+          <div className="flex items-center gap-3">
+            <StatusDot label="Gemini" ok={health.model} />
+            <StatusDot label="Agent" ok={health.agent} />
+            <Link
+              href="/settings"
+              className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+            >
+              <Settings size={10} />
+              <span className="hidden sm:inline">Settings</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* Center composer */}
+        <div className="flex-1 flex items-center justify-center px-4 overflow-y-auto">
+          <div className="w-full max-w-2xl space-y-6 py-12">
+            <div className="text-center space-y-2">
+              <h1 className="text-2xl font-semibold tracking-tight">What do you want to create?</h1>
+              <p className="text-sm text-muted-foreground">
+                Ask MetlCode to build a dashboard, website, API, or app...
+              </p>
+            </div>
+
+            {/* Prompt */}
+            <div className="space-y-3">
+              <textarea
+                className="w-full h-36 rounded-lg border border-border bg-card p-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                placeholder="Describe what you want to build..."
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+              />
+
+              {/* Attach repo */}
+              <div className="flex items-center gap-2">
+                <GitBranch size={14} className="text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="https://github.com/owner/repo (optional)"
+                  value={repoUrl}
+                  onChange={(e) => setRepoUrl(e.target.value)}
+                  className="flex-1 bg-transparent text-xs text-muted-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                />
+              </div>
+
+              {/* Controls */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex gap-1 p-1 bg-card rounded-md border border-border">
+                  {[
+                    { value: "AGENT" as SessionMode, label: "Agent", desc: "Build automatically" },
+                    { value: "PLAN" as SessionMode, label: "Plan", desc: "Plan before building" },
+                    { value: "ASK" as SessionMode, label: "Ask", desc: "Ask and understand" },
+                  ].map((m) => (
+                    <button
+                      key={m.value}
+                      onClick={() => setMode(m.value)}
+                      title={m.desc}
+                      className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                        mode === m.value
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+
+                <select
+                  value={projectType}
+                  onChange={(e) => setProjectType(e.target.value)}
+                  className="text-xs bg-card border border-border rounded-md px-2 py-1.5 text-muted-foreground focus:outline-none"
+                >
+                  <option value="">Project type</option>
+                  <option value="nextjs">Next.js</option>
+                  <option value="react">React</option>
+                  <option value="node">Node.js API</option>
+                  <option value="python">Python</option>
+                  <option value="go">Go</option>
+                </select>
+
+                <button
+                  onClick={handleStart}
+                  disabled={starting || !prompt.trim()}
+                  className="flex items-center gap-1.5 ml-auto rounded-md bg-primary text-primary-foreground px-4 py-1.5 text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Zap size={12} />
+                  {starting ? "Building..." : "Start Building"}
+                </button>
+              </div>
+
+              {/* Example chips */}
+              <div className="flex flex-wrap gap-2">
+                {examplePrompts.map((ex) => (
+                  <button
+                    key={ex}
+                    onClick={() => setPrompt(ex)}
+                    className="text-[10px] px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors"
+                  >
+                    {ex}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }
 
-function StatusBadge({ label, ok }: { label: string; ok: boolean }) {
+function SidebarItem({
+  icon,
+  label,
+  href,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  href: string;
+}) {
   return (
-    <div className="flex items-center gap-1.5">
-      <span className={`w-2 h-2 rounded-full ${ok ? "bg-emerald-500" : "bg-zinc-600"}`} />
-      <span>{label}</span>
-    </div>
+    <Link
+      href={href}
+      className="flex items-center gap-2.5 px-3 py-1.5 mx-1 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded transition-colors"
+    >
+      {icon}
+      <span className="hidden md:inline">{label}</span>
+    </Link>
+  );
+}
+
+function StatusDot({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+      <span className={`w-1.5 h-1.5 rounded-full ${ok ? "bg-emerald-500" : "bg-muted-foreground/30"}`} />
+      <span className="hidden sm:inline">{label}</span>
+    </span>
   );
 }

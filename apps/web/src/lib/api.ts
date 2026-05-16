@@ -1,9 +1,12 @@
+import type { SessionPayload } from "@/types";
+
 const BASE_URL = "";
 
 export async function createSession(data: {
   projectId?: string;
   userPrompt: string;
-  mode: string;
+  mode: "ASK" | "PLAN" | "AGENT";
+  repoUrl?: string;
 }) {
   const res = await fetch(`${BASE_URL}/api/sessions`, {
     method: "POST",
@@ -11,10 +14,10 @@ export async function createSession(data: {
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Failed to create session: ${res.status}`);
-  return res.json();
+  return res.json() as Promise<{ session: SessionPayload }>;
 }
 
-export async function getSession(id: string) {
+export async function getSession(id: string): Promise<{ session: SessionPayload }> {
   const res = await fetch(`${BASE_URL}/api/sessions/${id}`);
   if (!res.ok) throw new Error(`Failed to get session: ${res.status}`);
   return res.json();
@@ -38,6 +41,16 @@ export async function cancelSession(sessionId: string) {
     method: "POST",
   });
   if (!res.ok) throw new Error(`Failed to cancel: ${res.status}`);
+  return res.json();
+}
+
+export async function switchMode(sessionId: string, mode: "ASK" | "PLAN" | "AGENT") {
+  const res = await fetch(`${BASE_URL}/api/sessions/${sessionId}/mode`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode }),
+  });
+  if (!res.ok) throw new Error(`Failed to switch mode: ${res.status}`);
   return res.json();
 }
 

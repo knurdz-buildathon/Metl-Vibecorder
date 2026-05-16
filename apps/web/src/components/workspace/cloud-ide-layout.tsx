@@ -1,187 +1,211 @@
 "use client";
 
-import { useState } from "react";
+import {
+  Panel,
+  PanelGroup,
+  PanelResizeHandle,
+} from "react-resizable-panels";
 import Sidebar from "../layout/sidebar";
 import Topbar from "../layout/topbar";
 import ProviderStatusBar from "../layout/provider-status-bar";
 import EditorPanel from "./editor-panel";
+import BottomPanel from "./bottom-panel";
 import ChatPanel from "../assistant/chat-panel";
 import ActionButtonsPanel from "../assistant/action-buttons-panel";
-import BottomPanel from "./bottom-panel";
 import AgentStatusCard from "../assistant/agent-status-card";
 import ModeSelector from "../assistant/mode-selector";
-import FileTree from "./file-tree";
-import type { SessionMode, SessionStatus, ChatMessage, CheckRun, FileChange } from "@/types";
+import type {
+  SessionMode,
+  SessionStatus,
+  ChatMessage,
+  CheckRun,
+  FileChange,
+  TestRunPayload,
+  RestorePointPayload,
+  AgentRunPayload,
+  ApprovalPayload,
+  IdeStatus,
+  PreviewStatus,
+} from "@/types";
 
-interface CloudIdeLayoutProps {
+export interface CloudIdeLayoutProps {
   title?: string;
-  workspaceUrl?: string;
+  projectName?: string;
+  branchName?: string;
+  ideUrl?: string;
+  previewUrl?: string;
+  ideStatus?: IdeStatus;
+  previewStatus?: PreviewStatus;
   mode: SessionMode;
   status: SessionStatus;
-  sessionId: string;
   messages: ChatMessage[];
   checks: CheckRun[];
   fileChanges?: FileChange[];
   logs: string[];
+  testRuns?: TestRunPayload[];
+  restorePoints?: RestorePointPayload[];
+  agentRuns?: AgentRunPayload[];
+  approvals?: ApprovalPayload[];
+  activeModel?: string;
+  activePromptVersion?: string;
   onSendMessage?: (message: string) => void;
   onModeChange?: (mode: SessionMode) => void;
   onReload?: () => void;
+  onOpenSettings?: () => void;
 }
+
+const busyStatuses: SessionStatus[] = [
+  "workspace_creating",
+  "repo_cloning",
+  "repo_analyzing",
+  "planning",
+  "implementing",
+  "testing",
+  "fixing",
+  "repairing",
+];
 
 export default function CloudIdeLayout({
   title,
-  workspaceUrl,
+  projectName,
+  branchName,
+  ideUrl,
+  previewUrl,
+  ideStatus,
+  previewStatus,
   mode,
   status,
-  sessionId,
   messages,
   checks,
   fileChanges = [],
   logs,
+  testRuns = [],
+  restorePoints = [],
+  agentRuns = [],
+  approvals = [],
+  activeModel,
+  activePromptVersion,
   onSendMessage,
   onModeChange,
   onReload,
+  onOpenSettings,
 }: CloudIdeLayoutProps) {
-  const [rightTab, setRightTab] = useState<"chat" | "files">("chat");
-  const [treeCollapsed, setTreeCollapsed] = useState(false);
-  const isBusy = [
-    "workspace_creating",
-    "repo_cloning",
-    "repo_analyzing",
-    "planning",
-    "implementing",
-    "testing",
-    "fixing",
-    "repairing",
-  ].includes(status);
+  const isBusy = busyStatuses.includes(status);
 
   return (
-    <div className="flex h-screen bg-zinc-950 text-white overflow-hidden">
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+      {/* Fixed left sidebar */}
       <Sidebar />
 
-      <div className="flex flex-1 min-w-0">
-        {/* Left: File Tree */}
-        <div
-          className={`flex flex-col border-r border-zinc-800 transition-all ${
-            treeCollapsed ? "w-8" : "w-52"
-          }`}
-        >
-          <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
-            {!treeCollapsed && (
-              <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
-                Explorer
-              </span>
-            )}
-            <button
-              onClick={() => setTreeCollapsed((c) => !c)}
-              className="text-zinc-500 hover:text-white text-xs"
-            >
-              {treeCollapsed ? ">" : "<"}
-            </button>
-          </div>
-          {!treeCollapsed && (
-            <div className="flex-1 overflow-y-auto p-2">
-              <FileTree sessionId={sessionId} />
-            </div>
-          )}
-        </div>
+      {/* Resizable main area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Topbar */}
+        <Topbar
+          title={title}
+          projectName={projectName}
+          branchName={branchName}
+          mode={mode}
+          status={status}
+          onModeChange={onModeChange}
+          onOpenSettings={onOpenSettings}
+        />
 
-        {/* Center: Editor + Bottom */}
-        <div className="flex flex-col flex-1 min-w-0">
-          <Topbar title={title} status={status} workspaceConnected={!!workspaceUrl} />
+        {/* Main resizable panel group */}
+        <PanelGroup direction="horizontal" className="flex-1 min-h-0">
+          {/* Activity bar strip */}
+          <Panel defaultSize={4} minSize={3} maxSize={8} className="hidden md:flex flex-col bg-card border-r border-border">
+            <ActivityBar />
+          </Panel>
 
-          <div className="flex flex-1 min-h-0">
-            <div className="flex flex-col flex-1 min-w-0">
-              <div className="flex-1 min-h-0">
-                <EditorPanel workspaceUrl={workspaceUrl} />
-              </div>
-              <BottomPanel checks={checks} logs={logs} />
-            </div>
+          <PanelResizeHandle className="w-0.5 bg-border hover:bg-ring transition-colors hidden md:block" />
 
-            {/* Right: Chat + Actions */}
-            <div className="w-72 flex flex-col border-l border-zinc-800">
-              <div className="p-2.5 space-y-2.5 border-b border-zinc-800">
+          {/* Center: editor + bottom */}
+          <Panel defaultSize={65} minSize={30}>
+            <PanelGroup direction="vertical">
+              <Panel defaultSize={70} minSize={20}>
+                <EditorPanel
+                  ideUrl={ideUrl}
+                  ideStatus={ideStatus}
+                  previewUrl={previewUrl}
+                  previewStatus={previewStatus}
+                />
+              </Panel>
+
+              <PanelResizeHandle className="h-0.5 bg-border hover:bg-ring transition-colors" />
+
+              <Panel defaultSize={30} minSize={10} maxSize={50}>
+                <BottomPanel
+                  checks={checks}
+                  logs={logs}
+                  testRuns={testRuns}
+                  agentRuns={agentRuns}
+                />
+              </Panel>
+            </PanelGroup>
+          </Panel>
+
+          <PanelResizeHandle className="w-0.5 bg-border hover:bg-ring transition-colors" />
+
+          {/* Right assistant panel */}
+          <Panel defaultSize={25} minSize={18} maxSize={40}>
+            <div className="flex flex-col h-full bg-card border-l border-border">
+              <div className="p-3 space-y-3 border-b border-border">
                 <ModeSelector
                   value={mode}
                   onChange={onModeChange || (() => {})}
                   disabled={isBusy}
                 />
-                <AgentStatusCard mode={mode} status={status} />
-
-                <div className="flex gap-1 border-b border-zinc-800 pb-2">
-                  <button
-                    onClick={() => setRightTab("chat")}
-                    className={`text-xs px-2 py-1 rounded ${
-                      rightTab === "chat" ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
-                    }`}
-                  >
-                    Chat
-                  </button>
-                  <button
-                    onClick={() => setRightTab("files")}
-                    className={`text-xs px-2 py-1 rounded ${
-                      rightTab === "files" ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
-                    }`}
-                  >
-                    Changes
-                  </button>
-                </div>
+                <AgentStatusCard
+                  mode={mode}
+                  status={status}
+                  activeModel={activeModel}
+                  activePromptVersion={activePromptVersion}
+                />
               </div>
-
               <div className="flex-1 min-h-0 overflow-hidden">
-                {rightTab === "chat" ? (
-                  <>
-                    <ActionButtonsPanel
-                      status={status}
-                      sessionId={sessionId}
-                      onReload={onReload}
-                    />
-                    <ChatPanel
-                      messages={messages}
-                      onSend={onSendMessage}
-                      disabled={isBusy}
-                    />
-                  </>
-                ) : (
-                  <FileChangesPanel changes={fileChanges} />
-                )}
+                <ActionButtonsPanel
+                  status={status}
+                  sessionId={messages[0]?.sessionId || ""}
+                  approvals={approvals}
+                  onReload={onReload}
+                />
+                <ChatPanel
+                  messages={messages}
+                  onSend={onSendMessage}
+                  disabled={isBusy}
+                  mode={mode}
+                  approvals={approvals}
+                  onModeChange={onModeChange}
+                />
               </div>
             </div>
-          </div>
+          </Panel>
+        </PanelGroup>
 
-          <ProviderStatusBar />
-        </div>
+        <ProviderStatusBar />
       </div>
     </div>
   );
 }
 
-function FileChangesPanel({ changes }: { changes: FileChange[] }) {
-  const operationColors: Record<string, string> = {
-    created: "text-emerald-400",
-    modified: "text-amber-400",
-    deleted: "text-red-400",
-  };
-
+function ActivityBar() {
+  const items = [
+    { icon: <span className="text-xs font-bold">Ex</span>, label: "Explorer" },
+    { icon: <span className="text-xs font-bold">Gt</span>, label: "Git" },
+    { icon: <span className="text-xs font-bold">T</span>, label: "Tests" },
+    { icon: <span className="text-xs font-bold">Rp</span>, label: "Restore" },
+    { icon: <span className="text-xs font-bold">R</span>, label: "Reports" },
+  ];
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      {changes.length === 0 && (
-        <div className="text-zinc-500 text-sm text-center py-8">
-          No file changes yet.
-        </div>
-      )}
-      {changes.map((c) => (
-        <div
-          key={c.id}
-          className="px-3 py-2 border-b border-zinc-800 text-xs hover:bg-zinc-900"
+    <div className="flex flex-col items-center py-2 gap-3">
+      {items.map((item) => (
+        <button
+          key={item.label}
+          title={item.label}
+          className="w-8 h-8 flex items-center justify-center rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
         >
-          <div className="flex items-center gap-2">
-            <span className={`font-medium ${operationColors[c.operation] || "text-zinc-300"}`}>
-              {c.operation}
-            </span>
-            <span className="text-zinc-400 truncate">{c.filePath}</span>
-          </div>
-        </div>
+          {item.icon}
+        </button>
       ))}
     </div>
   );

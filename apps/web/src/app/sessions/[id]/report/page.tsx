@@ -89,18 +89,18 @@ export default function SessionReportPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
-        <p className="text-zinc-500">Loading report...</p>
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <p className="text-muted-foreground">Loading report...</p>
       </div>
     );
   }
 
   if (!report?.session) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <div className="text-center space-y-4">
-          <p className="text-zinc-400">Report not found.</p>
-          <Link href="/" className="text-white underline">Back to Home</Link>
+          <p className="text-muted-foreground">Report not found.</p>
+          <Link href="/" className="text-foreground underline">Back to Home</Link>
         </div>
       </div>
     );
@@ -109,7 +109,7 @@ export default function SessionReportPage() {
   const md = buildMarkdown(report);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-4xl mx-auto px-6 py-12 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -119,14 +119,14 @@ export default function SessionReportPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={handleDownload}
-              className="flex items-center gap-1 rounded-lg bg-white text-black px-4 py-2 text-sm font-semibold hover:bg-zinc-200"
+              className="flex items-center gap-1 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-semibold hover:opacity-90 transition-opacity"
             >
               <Download size={16} />
               Download
             </button>
             <Link
               href={`/sessions/${sessionId}`}
-              className="flex items-center gap-1 text-zinc-400 hover:text-white"
+              className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft size={16} />
               Back
@@ -134,7 +134,7 @@ export default function SessionReportPage() {
           </div>
         </div>
 
-        <pre className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 text-sm text-zinc-300 overflow-x-auto whitespace-pre-wrap font-mono">
+        <pre className="rounded-xl border border-border bg-card/50 p-6 text-sm text-foreground overflow-x-auto whitespace-pre-wrap font-mono">
           {md}
         </pre>
       </div>

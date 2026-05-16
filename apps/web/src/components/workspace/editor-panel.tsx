@@ -1,63 +1,163 @@
 "use client";
 
-import { FileText, GitBranch, Image, Monitor } from "lucide-react";
 import { useState } from "react";
+import { FileText, Monitor, RefreshCw, RotateCcw, Loader2, AlertTriangle } from "lucide-react";
+import type { IdeStatus, PreviewStatus } from "@/types";
 
 interface EditorPanelProps {
-  workspaceUrl?: string;
+  ideUrl?: string;
+  ideStatus?: IdeStatus;
+  previewUrl?: string;
+  previewStatus?: PreviewStatus;
 }
 
-export default function EditorPanel({ workspaceUrl }: EditorPanelProps) {
+export default function EditorPanel({
+  ideUrl,
+  ideStatus = "disabled",
+  previewUrl,
+  previewStatus = "disabled",
+}: EditorPanelProps) {
   const [activeTab, setActiveTab] = useState<"editor" | "preview">("editor");
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950">
-      <div className="flex items-center h-9 px-2 bg-zinc-900 border-b border-zinc-800 gap-1">
+    <div className="flex flex-col h-full bg-background">
+      <div className="flex items-center h-8 px-2 bg-card border-b border-border gap-1">
         <TabButton
           active={activeTab === "editor"}
-          icon={<FileText size={14} />}
+          icon={<FileText size={12} />}
           label="OpenVSCode"
           onClick={() => setActiveTab("editor")}
         />
         <TabButton
           active={activeTab === "preview"}
-          icon={<Monitor size={14} />}
+          icon={<Monitor size={12} />}
           label="Preview"
           onClick={() => setActiveTab("preview")}
         />
       </div>
 
-      <div className="flex-1">
+      <div className="flex-1 min-h-0">
         {activeTab === "editor" && (
-          <div className="w-full h-full">
-            {workspaceUrl ? (
-              <iframe
-                src={workspaceUrl}
-                className="w-full h-full border-0"
-                title="OpenVSCode Server"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads"
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-3">
-                <FileText size={48} className="text-zinc-700" />
-                <p className="text-sm">No workspace active.</p>
-                <p className="text-xs text-zinc-600">
-                  Start a session to open the OpenVSCode editor.
-                </p>
-              </div>
-            )}
-          </div>
+          <IdeContent ideUrl={ideUrl} ideStatus={ideStatus} />
         )}
         {activeTab === "preview" && (
-          <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-3">
-            <Monitor size={48} className="text-zinc-700" />
-            <p className="text-sm">Preview not available.</p>
-            <p className="text-xs text-zinc-600">
-              Preview will appear here when the app is running.
-            </p>
-          </div>
+          <PreviewContent previewUrl={previewUrl} previewStatus={previewStatus} />
         )}
       </div>
+    </div>
+  );
+}
+
+function IdeContent({ ideUrl, ideStatus }: { ideUrl?: string; ideStatus: IdeStatus }) {
+  if (ideStatus === "ready" && ideUrl) {
+    return (
+      <iframe
+        src={ideUrl}
+        className="w-full h-full border-0"
+        title="OpenVSCode Server"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads"
+      />
+    );
+  }
+
+  if (ideStatus === "starting") {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+        <Loader2 size={32} className="animate-spin text-primary" />
+        <p className="text-sm">IDE is starting...</p>
+        <p className="text-xs text-muted-foreground/60">This may take a few moments</p>
+      </div>
+    );
+  }
+
+  if (ideStatus === "failed") {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+        <AlertTriangle size={32} className="text-destructive" />
+        <p className="text-sm">IDE failed to start</p>
+        <p className="text-xs text-muted-foreground/60 max-w-sm text-center">
+          The IDE provider encountered an error. Your workspace is still available through logs, preview, and report panels.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="flex items-center gap-1.5 text-xs bg-secondary text-foreground px-3 py-1.5 rounded hover:bg-secondary/80 transition-colors"
+        >
+          <RotateCcw size={12} />
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+      <FileText size={32} className="text-muted-foreground/20" />
+      <p className="text-sm">IDE provider is not configured</p>
+      <p className="text-xs text-muted-foreground/60 max-w-sm text-center">
+        Your workspace is still available through generated files, logs, preview, and report panels.
+      </p>
+    </div>
+  );
+}
+
+function PreviewContent({ previewUrl, previewStatus }: { previewUrl?: string; previewStatus: PreviewStatus }) {
+  if (previewStatus === "ready" && previewUrl) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="h-8 flex items-center justify-between px-2 bg-card border-b border-border">
+          <span className="text-[10px] text-muted-foreground truncate max-w-[60%]">{previewUrl}</span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => window.location.reload()}
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Refresh preview"
+            >
+              <RefreshCw size={10} />
+            </button>
+          </div>
+        </div>
+        <iframe
+          src={previewUrl}
+          className="flex-1 w-full border-0"
+          title="Preview"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        />
+      </div>
+    );
+  }
+
+  if (previewStatus === "starting") {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+        <Loader2 size={32} className="animate-spin text-primary" />
+        <p className="text-sm">Preview is starting...</p>
+      </div>
+    );
+  }
+
+  if (previewStatus === "failed") {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+        <AlertTriangle size={32} className="text-destructive" />
+        <p className="text-sm">Preview failed to start</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="flex items-center gap-1.5 text-xs bg-secondary text-foreground px-3 py-1.5 rounded hover:bg-secondary/80 transition-colors"
+        >
+          <RotateCcw size={12} />
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+      <Monitor size={32} className="text-muted-foreground/20" />
+      <p className="text-sm">Preview not available</p>
+      <p className="text-xs text-muted-foreground/60 max-w-sm text-center">
+        Preview will appear here when the app is running.
+      </p>
     </div>
   );
 }
@@ -76,10 +176,10 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded ${
+      className={`flex items-center gap-1.5 px-2 py-0.5 text-[11px] rounded transition-colors ${
         active
-          ? "bg-zinc-800 text-white"
-          : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+          ? "bg-secondary text-foreground"
+          : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
       }`}
     >
       {icon}

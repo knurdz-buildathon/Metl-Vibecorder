@@ -14,7 +14,7 @@ export default function SettingsPage() {
     try {
       const data = await getProviderStatus();
       setProviders(data);
-    } catch (e) {
+    } catch {
       setProviders(null);
     } finally {
       setLoading(false);
@@ -26,11 +26,11 @@ export default function SettingsPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white px-6 py-12">
+    <main className="min-h-screen bg-background text-foreground px-6 py-12">
       <div className="max-w-2xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Settings</h1>
-          <Link href="/" className="flex items-center gap-1 text-zinc-500 hover:text-white">
+          <Link href="/" className="flex items-center gap-1 text-muted-foreground hover:text-foreground">
             <ArrowLeft size={16} />
             Back
           </Link>
@@ -40,14 +40,14 @@ export default function SettingsPage() {
           <button
             onClick={load}
             disabled={loading}
-            className="flex items-center gap-1 rounded-md bg-zinc-800 text-white px-3 py-1.5 text-xs hover:bg-zinc-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1 rounded-md bg-secondary text-foreground px-3 py-1.5 text-xs hover:bg-secondary/80 transition-colors disabled:opacity-50"
           >
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
             Re-check
           </button>
         </div>
 
-        {loading && <p className="text-zinc-500">Loading provider status...</p>}
+        {loading && <p className="text-muted-foreground">Loading provider status...</p>}
 
         {!loading && providers && (
           <>
@@ -82,16 +82,16 @@ export default function SettingsPage() {
           </>
         )}
 
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-4">
+        <div className="rounded-xl border border-border bg-card/50 p-6 space-y-4">
           <h2 className="text-lg font-semibold">Environment</h2>
-          <div className="space-y-2 text-sm text-zinc-400">
+          <div className="space-y-2 text-sm text-muted-foreground">
             <div className="flex justify-between">
               <span>GEMINI_PROVIDER</span>
-              <span className="font-mono text-zinc-300">{process.env.NEXT_PUBLIC_GEMINI_PROVIDER || "developer"}</span>
+              <span className="font-mono text-foreground">{process.env.NEXT_PUBLIC_GEMINI_PROVIDER || "developer"}</span>
             </div>
             <div className="flex justify-between">
               <span>GEMINI_MODEL</span>
-              <span className="font-mono text-zinc-300">{process.env.NEXT_PUBLIC_GEMINI_MODEL || "gemini-3.1-pro-preview-customtools"}</span>
+              <span className="font-mono text-foreground">{process.env.NEXT_PUBLIC_GEMINI_MODEL || "gemini-3.1-pro-preview-customtools"}</span>
             </div>
           </div>
         </div>
@@ -112,7 +112,7 @@ function ProviderCard({
   details: { label: string; value: string }[];
 }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-3">
+    <div className="rounded-xl border border-border bg-card/50 p-6 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {icon}
@@ -121,8 +121,8 @@ function ProviderCard({
         <span
           className={`text-xs font-medium px-2 py-0.5 rounded ${
             connected
-              ? "bg-emerald-900/50 text-emerald-400"
-              : "bg-zinc-800 text-zinc-500"
+              ? "bg-emerald-950/50 text-emerald-400 border border-emerald-900/40"
+              : "bg-secondary text-muted-foreground border border-border"
           }`}
         >
           {connected ? "Connected" : "Not configured"}
@@ -131,8 +131,8 @@ function ProviderCard({
       <div className="space-y-1.5">
         {details.map((d) => (
           <div key={d.label} className="flex justify-between text-sm">
-            <span className="text-zinc-500">{d.label}</span>
-            <span className="text-zinc-300">{d.value}</span>
+            <span className="text-muted-foreground">{d.label}</span>
+            <span className="text-foreground">{d.value}</span>
           </div>
         ))}
       </div>

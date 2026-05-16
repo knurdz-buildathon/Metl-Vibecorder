@@ -1,5 +1,4 @@
-// These match Prisma enums exactly (UPPERCASE for enums)
-export type SessionMode = "ASK" | "PLAN" | "AGENT" | "REPAIR" | "REVIEW";
+export type SessionMode = "ASK" | "PLAN" | "AGENT";
 
 export type SessionStatus =
   | "created"
@@ -23,6 +22,101 @@ export type SessionStatus =
   | "failed"
   | "paused";
 
+export type IdeStatus = "disabled" | "starting" | "ready" | "failed";
+export type PreviewStatus = "disabled" | "starting" | "ready" | "failed";
+
+export interface MessagePayload {
+  id: string;
+  sessionId: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  mode?: SessionMode;
+  createdAt: string;
+}
+
+export interface ApprovalPayload {
+  id: string;
+  sessionId: string;
+  type: "plan" | "commit";
+  status: "pending" | "approved" | "rejected";
+  body?: string;
+  createdAt: string;
+}
+
+export interface TestRunPayload {
+  id: string;
+  sessionId: string;
+  name: string;
+  status: "running" | "passed" | "failed" | "skipped";
+  durationMs?: number;
+  summary?: string;
+  error?: string;
+  createdAt: string;
+}
+
+export interface RestorePointPayload {
+  id: string;
+  sessionId: string;
+  label: string;
+  commitSha?: string;
+  createdAt: string;
+}
+
+export interface AgentRunPayload {
+  id: string;
+  sessionId: string;
+  mode: string;
+  model: string;
+  succeeded: boolean;
+  latencyMs?: number;
+  createdAt: string;
+}
+
+export interface IntegrationCallPayload {
+  id: string;
+  sessionId: string;
+  provider: string;
+  action: string;
+  success: boolean;
+  durationMs?: number;
+  createdAt: string;
+}
+
+export interface FinalReportPayload {
+  sessionId: string;
+  summary: string;
+  featuresImplemented: string[];
+  filesChanged: string[];
+  commits: string[];
+  restorePoints: string[];
+  testsRun: number;
+  skippedTools: string[];
+  knownLimitations: string[];
+  deploymentReady: boolean;
+}
+
+export interface SessionPayload {
+  id: string;
+  projectName: string;
+  mode: SessionMode;
+  status: SessionStatus;
+  repoUrl?: string;
+  branchName?: string;
+  ideUrl?: string;
+  previewUrl?: string;
+  ideStatus?: IdeStatus;
+  previewStatus?: PreviewStatus;
+  messages: MessagePayload[];
+  approvals: ApprovalPayload[];
+  testRuns: TestRunPayload[];
+  restorePoints: RestorePointPayload[];
+  agentRuns: AgentRunPayload[];
+  integrationCalls: IntegrationCallPayload[];
+  finalReport?: FinalReportPayload;
+  activeModel?: string;
+  activePromptVersion?: string;
+}
+
 export interface Session {
   id: string;
   projectId: string;
@@ -31,7 +125,6 @@ export interface Session {
   userPrompt: string;
   workspaceId?: string;
   workspaceUrl?: string;
-  workspace?: Workspace;
   createdAt: string;
   updatedAt: string;
 }

@@ -3,8 +3,8 @@ import "./globals.css";
 import { AuthProvider } from "@/components/auth/auth-provider";
 
 export const metadata: Metadata = {
-  title: "Metl-VibeCoder",
-  description: "AI coding workspace powered by Gemini",
+  title: "MetlCode",
+  description: "IDE-first AI coding workspace powered by Gemini",
 };
 
 export default function RootLayout({
@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="antialiased min-h-screen bg-zinc-950 text-white">
+      <body className="antialiased min-h-screen bg-background text-foreground">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

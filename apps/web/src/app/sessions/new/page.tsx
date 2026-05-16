@@ -1,65 +1,50 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import ModeSelector from "@/components/assistant/mode-selector";
-import { createSession, startSession, getProjects, createProject } from "@/lib/api";
+import {
+  Plus,
+  MessageSquare,
+  LayoutTemplate,
+  Settings,
+  Cpu,
+  GitBranch,
+  User,
+  Sparkles,
+  Zap,
+  FolderOpen,
+  Clock,
+  ArrowLeft,
+} from "lucide-react";
+import { createSession, startSession } from "@/lib/api";
 import type { SessionMode } from "@/types";
+
+const examplePrompts = [
+  "Build a task management dashboard with teams and deadlines",
+  "Create a REST API with user authentication and role-based access",
+  "Generate a responsive portfolio website with dark mode",
+  "Set up a Next.js app with Prisma, Tailwind, and NextAuth",
+];
 
 export default function NewWorkspacePage() {
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<SessionMode>("AGENT");
-  const [projectId, setProjectId] = useState<string>("");
-  const [projects, setProjects] = useState<any[]>([]);
-  const [showCreateProject, setShowCreateProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectDescription, setNewProjectDescription] = useState("");
+  const [repoUrl, setRepoUrl] = useState("");
+  const [projectType, setProjectType] = useState("");
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    getProjects()
-      .then((res) => {
-        setProjects(res.projects || []);
-        if (res.projects?.length > 0) {
-          setProjectId(res.projects[0].id);
-        }
-      })
-      .catch(() => {
-        setProjects([]);
-      });
-  }, []);
-
-  const handleCreateProject = async () => {
-    if (!newProjectName.trim()) return;
-    try {
-      const res = await createProject({
-        name: newProjectName.trim(),
-        description: newProjectDescription.trim(),
-      });
-      const created = res.project;
-      setProjects((prev) => [created, ...prev]);
-      setProjectId(created.id);
-      setShowCreateProject(false);
-      setNewProjectName("");
-      setNewProjectDescription("");
-    } catch (e: any) {
-      setError(e.message || "Failed to create project");
-    }
-  };
 
   const handleStart = async () => {
     if (!prompt.trim()) return;
     setIsStarting(true);
     setError("");
-
     try {
       const { session } = await createSession({
-        projectId: projectId || undefined,
         userPrompt: prompt,
         mode,
+        repoUrl: repoUrl || undefined,
       });
       await startSession(session.id);
       router.push(`/sessions/${session.id}`);
@@ -70,105 +55,173 @@ export default function NewWorkspacePage() {
   };
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center px-6">
-      <div className="max-w-xl w-full space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold">New Workspace</h1>
-          <p className="text-zinc-400">
-            Select a project and tell VibeCoder what to build.
-          </p>
+    <div className="min-h-screen bg-background text-foreground flex">
+      {/* Left Sidebar — same style as home */}
+      <aside className="w-14 md:w-60 flex-shrink-0 flex flex-col h-screen bg-card border-r border-border">
+        <div className="h-9 flex items-center justify-between px-3 border-b border-border">
+          <Link href="/" className="hidden md:flex items-center gap-2 text-sm font-bold">
+            <Sparkles size={16} className="text-primary" />
+            <span>MetlCode</span>
+          </Link>
+          <Sparkles size={16} className="md:hidden text-primary mx-auto" />
+        </div>
+        <div className="flex-1 overflow-y-auto py-2 space-y-0.5">
+          <SidebarItem icon={<Plus size={16} />} label="New Project" href="/sessions/new" active />
+          <SidebarItem icon={<FolderOpen size={16} />} label="Projects" href="/sessions" />
+          <SidebarItem icon={<MessageSquare size={16} />} label="Chats" href="/sessions" />
+          <SidebarItem icon={<LayoutTemplate size={16} />} label="Templates" href="/sessions/new" />
+        </div>
+        <div className="border-t border-border py-2 space-y-0.5">
+          <SidebarItem icon={<Settings size={16} />} label="Settings" href="/settings" />
+          <SidebarItem icon={<User size={16} />} label="Profile" href="/settings" />
+        </div>
+      </aside>
+
+      {/* Main — empty IDE workspace with central composer */}
+      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+        <div className="h-9 flex items-center justify-between px-4 border-b border-border bg-card">
+          <Link href="/" className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground">
+            <ArrowLeft size={10} />
+            <span>Back</span>
+          </Link>
+          <div className="flex items-center gap-3">
+            <StatusDot label="Gemini" />
+            <Link href="/settings" className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1">
+              <Settings size={10} />
+              <span className="hidden sm:inline">Settings</span>
+            </Link>
+          </div>
         </div>
 
-        <div className="space-y-4">
-          {/* Project selector */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm text-zinc-400">Project</label>
-              <button
-                onClick={() => setShowCreateProject((s) => !s)}
-                className="text-xs text-zinc-400 hover:text-white underline"
-                type="button"
-              >
-                {showCreateProject ? "Cancel" : "+ New Project"}
-              </button>
+        <div className="flex-1 flex items-center justify-center px-4 overflow-y-auto">
+          <div className="w-full max-w-2xl space-y-6 py-12">
+            <div className="text-center space-y-2">
+              <h1 className="text-2xl font-semibold tracking-tight">New Workspace</h1>
+              <p className="text-sm text-muted-foreground">
+                Ask MetlCode to build a dashboard, website, API, or app...
+              </p>
             </div>
 
-            {showCreateProject ? (
-              <div className="space-y-2 rounded-lg border border-zinc-700 bg-zinc-900 p-3">
+            <div className="space-y-3">
+              <textarea
+                className="w-full h-36 rounded-lg border border-border bg-card p-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                placeholder="Describe what you want to build..."
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+              />
+
+              <div className="flex items-center gap-2">
+                <GitBranch size={14} className="text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Project name"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-white"
+                  placeholder="https://github.com/owner/repo (optional)"
+                  value={repoUrl}
+                  onChange={(e) => setRepoUrl(e.target.value)}
+                  className="flex-1 bg-transparent text-xs text-muted-foreground placeholder:text-muted-foreground/60 focus:outline-none"
                 />
-                <input
-                  type="text"
-                  placeholder="Description (optional)"
-                  value={newProjectDescription}
-                  onChange={(e) => setNewProjectDescription(e.target.value)}
-                  className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-white"
-                />
-                <button
-                  onClick={handleCreateProject}
-                  disabled={!newProjectName.trim()}
-                  className="w-full rounded-md bg-zinc-800 text-white px-3 py-2 text-sm font-medium hover:bg-zinc-700 transition-colors disabled:opacity-50"
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex gap-1 p-1 bg-card rounded-md border border-border">
+                  {[
+                    { value: "AGENT" as SessionMode, label: "Agent", desc: "Build automatically" },
+                    { value: "PLAN" as SessionMode, label: "Plan", desc: "Plan before building" },
+                    { value: "ASK" as SessionMode, label: "Ask", desc: "Ask and understand" },
+                  ].map((m) => (
+                    <button
+                      key={m.value}
+                      onClick={() => setMode(m.value)}
+                      title={m.desc}
+                      className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                        mode === m.value
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+
+                <select
+                  value={projectType}
+                  onChange={(e) => setProjectType(e.target.value)}
+                  className="text-xs bg-card border border-border rounded-md px-2 py-1.5 text-muted-foreground focus:outline-none"
                 >
-                  Create Project
+                  <option value="">Project type</option>
+                  <option value="nextjs">Next.js</option>
+                  <option value="react">React</option>
+                  <option value="node">Node.js API</option>
+                  <option value="python">Python</option>
+                  <option value="go">Go</option>
+                </select>
+
+                <button
+                  onClick={handleStart}
+                  disabled={isStarting || !prompt.trim()}
+                  className="flex items-center gap-1.5 ml-auto rounded-md bg-primary text-primary-foreground px-4 py-1.5 text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Zap size={12} />
+                  {isStarting ? "Building..." : "Start Building"}
                 </button>
               </div>
-            ) : (
-              <select
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white"
-              >
-                {projects.length === 0 && (
-                  <option value="">(No projects yet)</option>
-                )}
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
+
+              <div className="flex flex-wrap gap-2">
+                {examplePrompts.map((ex) => (
+                  <button
+                    key={ex}
+                    onClick={() => setPrompt(ex)}
+                    className="text-[10px] px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors"
+                  >
+                    {ex}
+                  </button>
                 ))}
-              </select>
-            )}
-          </div>
+              </div>
 
-          <div>
-            <label className="block text-sm text-zinc-400 mb-2">Prompt</label>
-            <textarea
-              className="w-full h-32 rounded-lg border border-zinc-700 bg-zinc-900 p-4 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white"
-              placeholder="Build a task management app with teams and deadlines..."
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-zinc-400 mb-2">Mode</label>
-            <ModeSelector value={mode} onChange={setMode} />
-          </div>
-
-          {error && (
-            <div className="rounded-lg bg-red-900/30 border border-red-800 text-red-300 px-4 py-2 text-sm">
-              {error}
+              {error && (
+                <div className="rounded-md bg-destructive/10 border border-destructive/30 text-destructive px-3 py-2 text-xs">
+                  {error}
+                </div>
+              )}
             </div>
-          )}
-
-          <button
-            onClick={handleStart}
-            disabled={isStarting || !prompt.trim()}
-            className="w-full rounded-lg bg-white text-black px-6 py-3 font-semibold hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isStarting ? "Starting..." : "Start Session"}
-          </button>
+          </div>
         </div>
+      </main>
+    </div>
+  );
+}
 
-        <Link href="/" className="text-zinc-500 hover:text-white text-sm inline-block">
-          &larr; Back to home
-        </Link>
-      </div>
-    </main>
+function SidebarItem({
+  icon,
+  label,
+  href,
+  active,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  href: string;
+  active?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`flex items-center gap-2.5 px-3 py-1.5 mx-1 text-xs rounded transition-colors ${
+        active
+          ? "text-foreground bg-secondary font-medium"
+          : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+      }`}
+    >
+      {icon}
+      <span className="hidden md:inline">{label}</span>
+    </Link>
+  );
+}
+
+function StatusDot({ label }: { label: string }) {
+  return (
+    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+      <span className="hidden sm:inline">{label}</span>
+    </span>
   );
 }
