@@ -86,24 +86,46 @@ function CancelButton({ sessionId, onReload }: { sessionId: string; onReload?: (
 function ApproveButton({ sessionId, onReload }: { sessionId: string; onReload?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
 
   const handleClick = async () => {
     setLoading(true);
+    setError("");
     try {
       const res = await fetch(`/api/sessions/${sessionId}`);
       const data = await res.json();
       const pending = data.session?.approvalRequests?.find((a: any) => a.approved === null);
       if (pending) {
-        await approveRequest(sessionId, pending.id);
+        const result = await approveRequest(sessionId, pending.id);
+        if (!result.approved) {
+          throw new Error(result.error || "Approval failed");
+        }
       }
       setDone(true);
       onReload?.();
-    } catch (e) {
+    } catch (e: any) {
+      setError(e.message || "Approval failed");
       setDone(false);
     } finally {
       setLoading(false);
     }
   };
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-1 flex-1">
+        <button
+          onClick={handleClick}
+          disabled={loading}
+          className="rounded bg-emerald-900/40 text-emerald-300 border border-emerald-800/50 px-3 py-1.5 text-xs font-medium hover:bg-emerald-900/60 transition-colors disabled:opacity-50"
+        >
+          <CheckCircle size={12} className="inline mr-1" />
+          Approve
+        </button>
+        <span className="text-[10px] text-red-400">{error}</span>
+      </div>
+    );
+  }
 
   if (done) {
     return (
@@ -120,7 +142,7 @@ function ApproveButton({ sessionId, onReload }: { sessionId: string; onReload?: 
       className="flex-1 rounded bg-emerald-900/40 text-emerald-300 border border-emerald-800/50 px-3 py-1.5 text-xs font-medium hover:bg-emerald-900/60 transition-colors disabled:opacity-50"
     >
       <CheckCircle size={12} className="inline mr-1" />
-      Approve
+      {loading ? "Approving..." : "Approve"}
     </button>
   );
 }
@@ -128,24 +150,46 @@ function ApproveButton({ sessionId, onReload }: { sessionId: string; onReload?: 
 function RejectButton({ sessionId, onReload }: { sessionId: string; onReload?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
 
   const handleClick = async () => {
     setLoading(true);
+    setError("");
     try {
       const res = await fetch(`/api/sessions/${sessionId}`);
       const data = await res.json();
       const pending = data.session?.approvalRequests?.find((a: any) => a.approved === null);
       if (pending) {
-        await rejectRequest(sessionId, pending.id);
+        const result = await rejectRequest(sessionId, pending.id);
+        if (!result.rejected) {
+          throw new Error(result.error || "Rejection failed");
+        }
       }
       setDone(true);
       onReload?.();
-    } catch (e) {
+    } catch (e: any) {
+      setError(e.message || "Rejection failed");
       setDone(false);
     } finally {
       setLoading(false);
     }
   };
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-1 flex-1">
+        <button
+          onClick={handleClick}
+          disabled={loading}
+          className="rounded bg-red-900/40 text-red-300 border border-red-800/50 px-3 py-1.5 text-xs font-medium hover:bg-red-900/60 transition-colors disabled:opacity-50"
+        >
+          <XCircle size={12} className="inline mr-1" />
+          Reject
+        </button>
+        <span className="text-[10px] text-red-400">{error}</span>
+      </div>
+    );
+  }
 
   if (done) {
     return (
@@ -162,7 +206,7 @@ function RejectButton({ sessionId, onReload }: { sessionId: string; onReload?: (
       className="flex-1 rounded bg-red-900/40 text-red-300 border border-red-800/50 px-3 py-1.5 text-xs font-medium hover:bg-red-900/60 transition-colors disabled:opacity-50"
     >
       <XCircle size={12} className="inline mr-1" />
-      Reject
+      {loading ? "Rejecting..." : "Reject"}
     </button>
   );
 }

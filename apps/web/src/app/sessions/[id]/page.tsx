@@ -133,6 +133,19 @@ export default function SessionWorkspacePage() {
       case "awaiting_approval":
         setStatus("awaiting_plan_approval");
         break;
+      case "agent_error":
+        setLogs((prev) => [
+          ...prev,
+          `[${new Date().toLocaleTimeString()}] Agent error: ${latest.payload?.error || "Unknown error"}`,
+        ]);
+        setStatus("failed");
+        break;
+      case "plan_approved":
+        setLogs((prev) => [
+          ...prev,
+          `[${new Date().toLocaleTimeString()}] Plan approved`,
+        ]);
+        break;
       default:
         break;
     }

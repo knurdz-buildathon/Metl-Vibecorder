@@ -26,12 +26,52 @@ export async function POST(
 
       const session = await prisma.session.findUnique({ where: { id: sessionId } });
       if (session) {
-        callAgentGenerate({
-          session_id: sessionId,
-          mode: "agent",
-          user_prompt: session.userPrompt,
-          approved_plan: approval.body,
-        }).catch((err) => console.error("Agent call failed:", err));
+        try {
+          const result = await callAgentGenerate({
+            session_id: sessionId,
+            mode: "agent",
+            user_prompt: session.userPrompt,
+            approved_plan: approval.body,
+          });
+
+          // Store assistant response message
+          const responseMessage = result.message || result.summary || "";
+          if (responseMessage) {
+            await prisma.chatMessage.create({
+              data: {
+                sessionId,
+                role: "assistant",
+                content: responseMessage,
+                mode: session.mode as any,
+              },
+            });
+            publishEvent(sessionId, "new_message", { role: "assistant", content: responseMessage });
+          }
+
+          // Update status based on agent completion
+          const completionStatus = result.completion_status || "done";
+          let nextStatus = "completed";
+          if (completionStatus === "needs_repair") {
+            nextStatus = "repairing";
+          } else if (completionStatus === "needs_approval") {
+            nextStatus = "awaiting_plan_approval";
+          }
+
+          await prisma.session.update({
+            where: { id: sessionId },
+            data: { status: nextStatus as any },
+          });
+          publishEvent(sessionId, "status_change", { status: nextStatus });
+        } catch (err: any) {
+          console.error("Agent call failed after approval:", err);
+          await prisma.session.update({
+            where: { id: sessionId },
+            data: { status: "failed" as any },
+          });
+          publishEvent(sessionId, "status_change", { status: "failed" });
+          publishEvent(sessionId, "agent_error", { error: err.message });
+          return NextResponse.json({ error: err.message }, { status: 500 });
+        }
       }
     }
 
