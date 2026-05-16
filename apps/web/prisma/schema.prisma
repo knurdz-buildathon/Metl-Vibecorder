@@ -7,85 +7,338 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// =========================================
+// Core Identity
+// =========================================
+
 model User {
-  id          String    @id @default(cuid())
-  email       String    @unique
+  id          String             @id @default(cuid())
+  email       String             @unique
   name        String?
   image       String?
-  githubToken String?   @map("github_token")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  githubToken String?            @map("github_token")
+  createdAt   DateTime           @default(now()) @map("created_at")
   projects    Project[]
+  preferences ProjectPreference?
 
   @@map("users")
 }
 
+// =========================================
+// Projects
+// =========================================
+
 model Project {
-  id          String    @id @default(cuid())
-  name        String
-  description String?
-  repoUrl     String?   @map("repo_url")
-  githubRepo  String?   @map("github_repo")
-  language    String    @default("typescript")
-  userId      String    @map("user_id")
-  user        User      @relation(fields: [userId], references: [id])
-  sessions    Session[]
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id           String           @id @default(cuid())
+  name         String
+  description  String?
+  repoUrl      String?          @map("repo_url")
+  githubRepo   String?          @map("github_repo")
+  language     String           @default("typescript")
+  userId       String           @map("user_id")
+  user         User             @relation(fields: [userId], references: [id])
+  sessions     Session[]
+  createdAt    DateTime         @default(now()) @map("created_at")
 
   @@map("projects")
 }
 
+// =========================================
+// Sessions
+// =========================================
+
 model Session {
-  id           String           @id @default(cuid())
-  projectId    String           @map("project_id")
-  project      Project          @relation(fields: [projectId], references: [id])
-  mode         String
-  status       String
-  userPrompt   String           @map("user_prompt") @db.Text
-  workspaceId  String?          @map("workspace_id")
-  workspaceUrl String?          @map("workspace_url")
-  createdAt    DateTime         @default(now()) @map("created_at")
-  updatedAt    DateTime         @updatedAt @map("updated_at")
-  messages     ChatMessage[]
-  checks       CheckRun[]
-  filesChanged FileChange[]
+  id                  String             @id @default(cuid())
+  projectId           String             @map("project_id")
+  project             Project            @relation(fields: [projectId], references: [id])
+  mode                SessionMode
+  status              SessionStatus      @default(created)
+  userPrompt          String             @map("user_prompt") @db.Text
+  planMarkdown        String?            @map("plan_markdown") @db.Text
+  summary             String?            @db.Text
+  workspaceId         String?            @map("workspace_id")
+  workspaceUrl        String?            @map("workspace_url")
+  modelUsed           String?            @map("model_used")
+  promptVersion       String?            @map("prompt_version")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+
+  messages            ChatMessage[]
+  agentRuns           AgentRun[]
+  checkRuns           CheckRun[]
+  fileChanges         FileChange[]
+  restorePoints       RestorePoint[]
+  approvalRequests    ApprovalRequest[]
+  finalReport         FinalReport?
+  integrationCalls    IntegrationCall[]
 
   @@map("sessions")
 }
 
+enum SessionMode {
+  ASK
+  PLAN
+  AGENT
+  REPAIR
+  REVIEW
+}
+
+enum SessionStatus {
+  created
+  workspace_creating
+  workspace_ready
+  repo_cloning
+  repo_analyzing
+  context_creating
+  clarifying
+  planning
+  awaiting_plan_approval
+  implementing
+  awaiting_commit_approval
+  testing
+  fixing
+  repairing
+  ready_for_deployment
+  waiting_deployment_approval
+  deployment_handoff
+  completed
+  failed
+  paused
+}
+
+// =========================================
+// Messages
+// =========================================
+
 model ChatMessage {
-  id        String   @id @default(cuid())
-  sessionId String   @map("session_id")
-  session   Session  @relation(fields: [sessionId], references: [id])
-  role      String
-  content   String   @db.Text
-  mode      String?
-  createdAt DateTime @default(now()) @map("created_at")
+  id        String      @id @default(cuid())
+  sessionId String      @map("session_id")
+  session   Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      MessageRole
+  content   String      @db.Text
+  mode      SessionMode?
+  createdAt DateTime    @default(now()) @map("created_at")
 
   @@map("chat_messages")
 }
 
+enum MessageRole {
+  user
+  assistant
+  system
+}
+
+// =========================================
+// Agent Runs
+// =========================================
+
+model AgentRun {
+  id          String    @id @default(cuid())
+  sessionId   String    @map("session_id")
+  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  mode        SessionMode
+  model       String
+  promptVersion String @map("prompt_version")
+  inputTokens  Int?     @map("input_tokens")
+  outputTokens Int?     @map("output_tokens")
+  latencyMs    Int?     @map("latency_ms")
+  succeeded   Boolean   @default(false)
+  error       String?   @db.Text
+  startedAt   DateTime  @default(now()) @map("started_at")
+  endedAt     DateTime? @map("ended_at")
+
+  toolCalls   ToolCall[]
+
+  @@map("agent_runs")
+}
+
+model ToolCall {
+  id          String   @id @default(cuid())
+  agentRunId  String   @map("agent_run_id")
+  agentRun    AgentRun @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  toolName    String   @map("tool_name")
+  arguments   String?  @db.Text
+  result      String?  @db.Text
+  error       String?  @db.Text
+  succeeded   Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("tool_calls")
+}
+
+// =========================================
+// Checks
+// =========================================
+
 model CheckRun {
-  id        String   @id @default(cuid())
-  sessionId String   @map("session_id")
-  session   Session  @relation(fields: [sessionId], references: [id])
-  type      String
-  status    String
+  id        String     @id @default(cuid())
+  sessionId String     @map("session_id")
+  session   Session    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  type      String     // install, lint, typecheck, build, test, playwright
+  status    CheckStatus
   command   String
-  stdout    String?  @db.Text
-  stderr    String?  @db.Text
-  createdAt DateTime @default(now()) @map("created_at")
+  stdout    String?    @db.Text
+  stderr    String?    @db.Text
+  createdAt DateTime   @default(now()) @map("created_at")
 
   @@map("check_runs")
 }
 
+enum CheckStatus {
+  pending
+  passed
+  failed
+  skipped
+}
+
+// =========================================
+// File Changes
+// =========================================
+
 model FileChange {
-  id        String   @id @default(cuid())
-  sessionId String   @map("session_id")
-  session   Session  @relation(fields: [sessionId], references: [id])
-  filePath  String   @map("file_path")
-  operation String
-  diff      String?  @db.Text
-  createdAt DateTime @default(now()) @map("created_at")
+  id        String           @id @default(cuid())
+  sessionId String           @map("session_id")
+  session   Session          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  filePath  String           @map("file_path")
+  operation FileOperation
+  diff      String?          @db.Text
+  createdAt DateTime         @default(now()) @map("created_at")
 
   @@map("file_changes")
+}
+
+enum FileOperation {
+  created
+  modified
+  deleted
+}
+
+// =========================================
+// Internal Documents
+// =========================================
+
+model InternalDocument {
+  id          String   @id @default(cuid())
+  sessionId   String   @map("session_id")
+  docType     String   @map("doc_type") // project-context, plan, fix-notes, report
+  content     String   @db.Text
+  version     Int      @default(1)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([sessionId, docType, version])
+  @@map("internal_documents")
+}
+
+model SuperPromptVersion {
+  id        String   @id @default(cuid())
+  version   String
+  hash      String
+  model     String
+  mode      String
+  promptBody String  @map("prompt_body") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("super_prompt_versions")
+}
+
+// =========================================
+// Restore Points
+// =========================================
+
+model RestorePoint {
+  id          String   @id @default(cuid())
+  sessionId   String   @map("session_id")
+  session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  name        String
+  gitCommit   String?  @map("git_commit")
+  gitStash    String?  @map("git_stash")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("restore_points")
+}
+
+// =========================================
+// Approval Requests
+// =========================================
+
+model ApprovalRequest {
+  id          String           @id @default(cuid())
+  sessionId   String           @map("session_id")
+  session     Session          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  type        ApprovalType
+  title       String
+  body        String           @db.Text
+  approved    Boolean?         // null = pending, true = approved, false = rejected
+  respondedAt DateTime?        @map("responded_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  @@map("approval_requests")
+}
+
+enum ApprovalType {
+  PLAN
+  COMMIT
+  DEPLOY
+}
+
+// =========================================
+// Final Report
+// =========================================
+
+model FinalReport {
+  id                  String    @id @default(cuid())
+  sessionId           String    @unique @map("session_id")
+  session             Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  originalPrompt      String    @map("original_prompt") @db.Text
+  mode                SessionMode
+  model               String
+  promptVersion       String    @map("prompt_version")
+  filesChangedCount   Int       @map("files_changed_count")
+  commandsRun         String[]  @map("commands_run")
+  checksPassed        Int       @map("checks_passed")
+  checksFailed        Int       @map("checks_failed")
+  checksSkipped       Int       @map("checks_skipped")
+  repairAttempts      Int       @map("repair_attempts")
+  risks               String[]
+  readiness           String
+  nextSteps           String?   @map("next_steps") @db.Text
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  @@map("final_reports")
+}
+
+// =========================================
+// Integration Calls (logging)
+// =========================================
+
+model IntegrationCall {
+  id          String    @id @default(cuid())
+  sessionId   String    @map("session_id")
+  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  provider    String    // gemini, github, docker, playwright
+  endpoint    String
+  statusCode  Int?      @map("status_code")
+  latencyMs   Int?      @map("latency_ms")
+  error       String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("integration_calls")
+}
+
+// =========================================
+// Preferences
+// =========================================
+
+model ProjectPreference {
+  id                String    @id @default(cuid())
+  userId            String    @unique @map("user_id")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultModel      String?   @map("default_model")
+  defaultMode       SessionMode? @map("default_mode")
+  autoRunChecks     Boolean   @default(true) @map("auto_run_checks")
+  enableRepair      Boolean   @default(true) @map("enable_repair")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@map("project_preferences")
 }
