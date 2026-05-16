@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { callAgentGenerate } from "@/lib/orchestrator";
+import { publishEvent } from "@/lib/events";
 
 export async function POST(
   request: Request,
@@ -14,12 +15,14 @@ export async function POST(
       data: { approved: true, respondedAt: new Date() },
     });
 
-    // If plan was approved, start agent implementation
+    publishEvent(sessionId, "plan_approved", { approvalId });
+
     if (approval.type === "PLAN") {
       await prisma.session.update({
         where: { id: sessionId },
-        data: { status: "implementing" },
+        data: { status: "implementing" as any },
       });
+      publishEvent(sessionId, "status_change", { status: "implementing" });
 
       const session = await prisma.session.findUnique({ where: { id: sessionId } });
       if (session) {

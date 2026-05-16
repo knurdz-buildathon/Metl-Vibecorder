@@ -6,6 +6,7 @@ import Topbar from "../layout/topbar";
 import ProviderStatusBar from "../layout/provider-status-bar";
 import EditorPanel from "./editor-panel";
 import ChatPanel from "../assistant/chat-panel";
+import ActionButtonsPanel from "../assistant/action-buttons-panel";
 import BottomPanel from "./bottom-panel";
 import AgentStatusCard from "../assistant/agent-status-card";
 import ModeSelector from "../assistant/mode-selector";
@@ -22,6 +23,7 @@ interface CloudIdeLayoutProps {
   logs: string[];
   onSendMessage?: (message: string) => void;
   onModeChange?: (mode: SessionMode) => void;
+  onReload?: () => void;
 }
 
 export default function CloudIdeLayout({
@@ -35,6 +37,7 @@ export default function CloudIdeLayout({
   logs,
   onSendMessage,
   onModeChange,
+  onReload,
 }: CloudIdeLayoutProps) {
   const [rightTab, setRightTab] = useState<"chat" | "files">("chat");
   const isBusy = [
@@ -97,11 +100,18 @@ export default function CloudIdeLayout({
 
             <div className="flex-1 min-h-0 overflow-hidden">
               {rightTab === "chat" ? (
-                <ChatPanel
-                  messages={messages}
-                  onSend={onSendMessage}
-                  disabled={isBusy}
-                />
+                <>
+                  <ActionButtonsPanel
+                    status={status}
+                    sessionId={messages[0]?.sessionId || ""}
+                    onReload={onReload}
+                  />
+                  <ChatPanel
+                    messages={messages}
+                    onSend={onSendMessage}
+                    disabled={isBusy}
+                  />
+                </>
               ) : (
                 <FileChangesPanel changes={fileChanges} />
               )}

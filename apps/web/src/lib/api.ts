@@ -90,3 +90,21 @@ export async function createProject(data: {
   if (!res.ok) throw new Error(`Failed to create project: ${res.status}`);
   return res.json();
 }
+
+export async function approveRequest(sessionId: string, approvalId: string) {
+  const res = await fetch(
+    `${BASE_URL}/api/sessions/${sessionId}/approvals/${approvalId}/approve`,
+    { method: "POST" }
+  );
+  if (!res.ok) throw new Error(`Failed to approve: ${res.status}`);
+  return res.json();
+}
+
+export async function rejectRequest(sessionId: string, approvalId: string) {
+  const res = await fetch(
+    `${BASE_URL}/api/sessions/${sessionId}/approvals/${approvalId}/reject`,
+    { method: "POST" }
+  );
+  if (!res.ok) throw new Error(`Failed to reject: ${res.status}`);
+  return res.json();
+}
