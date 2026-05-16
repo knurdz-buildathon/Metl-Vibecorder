@@ -56,7 +56,7 @@ export default function CloudIdeLayout({
       <Sidebar />
 
       <div className="flex flex-col flex-1 min-w-0">
-        <Topbar title={title} />
+        <Topbar title={title} status={status} workspaceConnected={!!workspaceUrl} />
 
         <div className="flex flex-1 min-h-0">
           {/* Main editor area */}

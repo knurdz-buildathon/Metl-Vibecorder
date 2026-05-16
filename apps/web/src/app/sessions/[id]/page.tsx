@@ -117,8 +117,18 @@ export default function SessionWorkspacePage() {
           setMessages((prev) => [...prev, msg]);
         }
         break;
-      case "agent_error":
-        setError(latest.payload?.error || "Agent error");
+      case "file_change":
+        if (latest.payload?.file_path) {
+          const fc: FileChange = {
+            id: `fc-${Date.now()}`,
+            sessionId,
+            filePath: latest.payload.file_path,
+            operation: latest.payload.operation || "modified",
+            diff: "",
+            createdAt: new Date().toISOString(),
+          };
+          setFileChanges((prev) => [...prev, fc]);
+        }
         break;
       case "awaiting_approval":
         setStatus("awaiting_plan_approval");

@@ -38,6 +38,36 @@ class VibeCoderAgent:
 
         return "\n".join(context_parts)
 
+    def _parse_and_apply_file_edits(self, response: str) -> list[dict]:
+        """Parse code block file edits from the LLM response and write them to disk."""
+        import re
+
+        edits = []
+        # Look for ```file:<path> blocks
+        pattern = r"```file:([^\n`]+)\n(.*?)```"
+        matches = re.findall(pattern, response, re.DOTALL)
+
+        for file_path, content in matches:
+            file_path = file_path.strip()
+            content = content.strip()
+            if not file_path:
+                continue
+
+            exists_ok, _ = safe_read_file(self.session_id, file_path)
+            op = "modified" if exists_ok else "created"
+
+            ok, msg = safe_write_file(self.session_id, file_path, content)
+            if ok:
+                publish_event(self.session_id, "file_change", {
+                    "file_path": file_path,
+                    "operation": op,
+                })
+                edits.append({"path": file_path, "operation": op})
+            else:
+                logger.error(f"Failed to write {file_path}: {msg}")
+
+        return edits
+
     async def ask(self, user_prompt: str) -> dict:
         publish_event(self.session_id, "agent_start", {"mode": "ask"})
         context = self._build_project_context(".")
@@ -90,8 +120,8 @@ class VibeCoderAgent:
         response = await gemini_client.generate(prompt)
         publish_event(self.session_id, "agent_complete", {"mode": "agent"})
 
-        # Parse response for file edits (mock for now)
-        files_changed = []
+        # Extract file edits from response and apply them
+        files_changed = self._parse_and_apply_file_edits(response)
 
         # Run checks
         check_results = run_all_checks(self.session_id)
