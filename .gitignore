@@ -11,7 +11,7 @@ dist/
 build/
 *.tsbuildinfo
 
-# Environment
+# Environment - NEVER commit secrets
 .env
 .env.local
 .env.*.local
@@ -35,6 +35,7 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 ENV/
 env.bak/
 venv.bak/
