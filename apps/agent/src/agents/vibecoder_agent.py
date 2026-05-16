@@ -12,6 +12,9 @@ from src.services.check_runner import run_all_checks
 from src.services.logger import logger
 
 
+from src.services.event_bridge import publish_event
+
+
 class VibeCoderAgent:
     def __init__(self, session_id: str):
         self.session_id = session_id
@@ -36,20 +39,25 @@ class VibeCoderAgent:
         return "\n".join(context_parts)
 
     async def ask(self, user_prompt: str) -> dict:
+        publish_event(self.session_id, "agent_start", {"mode": "ask"})
         context = self._build_project_context(".")
         prompt = assemble_prompt("ask", user_prompt, project_context=context)
         response = await gemini_client.generate(prompt)
+        publish_event(self.session_id, "agent_complete", {"mode": "ask"})
         return {
             "status": "ok",
             "mode": "ask",
             "answer": response,
+            "message": response,
             "completion_status": "done",
         }
 
     async def plan(self, user_prompt: str) -> dict:
+        publish_event(self.session_id, "agent_start", {"mode": "plan"})
         context = self._build_project_context(".")
         prompt = assemble_prompt("plan", user_prompt, project_context=context)
         response = await gemini_client.generate(prompt)
+        publish_event(self.session_id, "agent_complete", {"mode": "plan"})
 
         # Save plan
         self.doc_manager.upsert_implementation_plan(self.session_id, response)
@@ -60,11 +68,13 @@ class VibeCoderAgent:
             "status": "ok",
             "mode": "plan",
             "plan": response,
+            "message": response,
             "prompt_version": version,
             "completion_status": "needs_approval",
         }
 
     async def agent(self, user_prompt: str, approved_plan: Optional[str] = None) -> dict:
+        publish_event(self.session_id, "agent_start", {"mode": "agent"})
         # Create restore point
         safe_create_restore_point(self.session_id, "agent-start")
 
@@ -78,6 +88,7 @@ class VibeCoderAgent:
         )
 
         response = await gemini_client.generate(prompt)
+        publish_event(self.session_id, "agent_complete", {"mode": "agent"})
 
         # Parse response for file edits (mock for now)
         files_changed = []
@@ -94,6 +105,7 @@ class VibeCoderAgent:
         return {
             "status": "ok",
             "mode": "agent",
+            "message": response,
             "summary": "Agent mode completed.",
             "files_changed": files_changed,
             "check_results": check_results,
@@ -102,10 +114,12 @@ class VibeCoderAgent:
         }
 
     async def repair(self, error_logs: str, attempt: int = 1) -> dict:
+        publish_event(self.session_id, "agent_start", {"mode": "repair", "attempt": attempt})
         if attempt > settings.vibecoder_max_repair_attempts:
             return {
                 "status": "error",
                 "fixed": False,
+                "message": f"Max repair attempts ({settings.vibecoder_max_repair_attempts}) reached.",
                 "summary": f"Max repair attempts ({settings.vibecoder_max_repair_attempts}) reached.",
                 "completion_status": "done",
             }
@@ -113,6 +127,7 @@ class VibeCoderAgent:
         ok, diff = safe_read_file(self.session_id, "")
         prompt = assemble_prompt("repair", "Fix the build/test failure", current_diff=diff, check_results=error_logs)
         response = await gemini_client.generate(prompt)
+        publish_event(self.session_id, "agent_complete", {"mode": "repair", "attempt": attempt})
 
         # Save fix notes
         notes = self.doc_manager.read_doc(self.session_id, "fix-notes.md") or ""
@@ -127,17 +142,20 @@ class VibeCoderAgent:
             "status": "ok",
             "fixed": len(failed) == 0,
             "attempt": attempt,
+            "message": response,
             "summary": response,
             "check_results": check_results,
             "completion_status": "done" if len(failed) == 0 else "needs_repair",
         }
 
     async def review(self, files_changed: list) -> dict:
+        publish_event(self.session_id, "agent_start", {"mode": "review"})
         ok, diff = safe_read_file(self.session_id, "")
         ok2, check_results_text = safe_read_file(self.session_id, "")
 
         prompt = assemble_prompt("review", "Review the final code changes", current_diff=diff, check_results=check_results_text)
         response = await gemini_client.generate(prompt)
+        publish_event(self.session_id, "agent_complete", {"mode": "review"})
 
         # Save final report
         self.doc_manager.upsert_final_report(self.session_id, response)
@@ -145,6 +163,7 @@ class VibeCoderAgent:
         return {
             "status": "ok",
             "mode": "review",
+            "message": response,
             "summary": response,
             "completion_status": "done",
         }

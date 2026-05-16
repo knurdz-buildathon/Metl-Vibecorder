@@ -1,7 +1,7 @@
 "use client";
 
-import { Terminal, CheckCircle2, XCircle, ChevronUp, ChevronDown } from "lucide-react";
 import { useState } from "react";
+import { Terminal, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import type { CheckRun } from "@/types";
 
 interface BottomPanelProps {
@@ -10,98 +10,74 @@ interface BottomPanelProps {
 }
 
 export default function BottomPanel({ checks, logs }: BottomPanelProps) {
-  const [tab, setTab] = useState<"checks" | "logs">("checks");
-  const [collapsed, setCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState<"checks" | "logs">("checks");
 
-  if (collapsed) {
-    return (
-      <div
-        className="flex items-center justify-between h-8 px-4 bg-zinc-900 border-t border-zinc-800 cursor-pointer"
-        onClick={() => setCollapsed(false)}
-      >
-        <div className="flex items-center gap-3 text-xs text-zinc-400">
-          <span className="flex items-center gap-1">
-            <Terminal size={12} />
-            Logs
-          </span>
-          <span>{checks.length} checks</span>
-        </div>
-        <ChevronUp size={14} className="text-zinc-500" />
-      </div>
-    );
-  }
+  const statusIcon = (status: string) => {
+    switch (status) {
+      case "passed":
+        return <CheckCircle2 size={12} className="text-emerald-400" />;
+      case "failed":
+        return <XCircle size={12} className="text-red-400" />;
+      case "running":
+        return <Loader2 size={12} className="text-amber-400 animate-spin" />;
+      default:
+        return <div className="w-3 h-3 rounded-full bg-zinc-700" />;
+    }
+  };
 
   return (
-    <div className="flex flex-col h-48 bg-zinc-950 border-t border-zinc-800">
-      <div className="flex items-center justify-between h-8 px-4 border-b border-zinc-800">
-        <div className="flex gap-4">
-          <button
-            onClick={() => setTab("checks")}
-            className={`text-xs ${
-              tab === "checks"
-                ? "text-white border-b border-white"
-                : "text-zinc-500 hover:text-zinc-300"
-            } pb-2`}
-          >
-            Checks ({checks.length})
-          </button>
-          <button
-            onClick={() => setTab("logs")}
-            className={`text-xs ${
-              tab === "logs"
-                ? "text-white border-b border-white"
-                : "text-zinc-500 hover:text-zinc-300"
-            } pb-2`}
-          >
-            Logs ({logs.length})
-          </button>
-        </div>
-        <ChevronDown
-          size={14}
-          className="text-zinc-500 cursor-pointer"
-          onClick={() => setCollapsed(true)}
-        />
+    <div className="h-48 flex flex-col border-t border-zinc-800 bg-zinc-950">
+      <div className="flex border-b border-zinc-800">
+        <button
+          onClick={() => setActiveTab("checks")}
+          className={`px-3 py-1.5 text-xs font-medium ${
+            activeTab === "checks"
+              ? "text-white border-b border-white"
+              : "text-zinc-500 hover:text-zinc-300"
+          }`}
+        >
+          Checks ({checks.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("logs")}
+          className={`px-3 py-1.5 text-xs font-medium ${
+            activeTab === "logs"
+              ? "text-white border-b border-white"
+              : "text-zinc-500 hover:text-zinc-300"
+          }`}
+        >
+          Logs ({logs.length})
+        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3">
-        {tab === "checks" && (
-          <div className="space-y-2">
-            {checks.length === 0 && (
-              <div className="text-xs text-zinc-600 text-center py-4">
-                No checks run yet.
-              </div>
-            )}
-            {checks.map((check) => (
-              <div
-                key={check.id}
-                className="flex items-center gap-2 text-xs"
-              >
-                {check.status === "passed" ? (
-                  <CheckCircle2 size={14} className="text-emerald-400" />
-                ) : check.status === "failed" ? (
-                  <XCircle size={14} className="text-red-400" />
-                ) : (
-                  <Terminal size={14} className="text-zinc-500 animate-pulse" />
-                )}
-                <span className="text-zinc-300">{check.type}</span>
-                <span className="text-zinc-500">{check.command}</span>
-                {check.status === "failed" && check.stderr && (
-                  <span className="text-red-400 ml-auto truncate max-w-[200px]">
-                    {check.stderr}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-        {tab === "logs" && (
-          <div className="font-mono text-xs space-y-1">
-            {logs.length === 0 && (
-              <div className="text-zinc-600 text-center py-4">No logs yet.</div>
-            )}
-            {logs.map((log, i) => (
-              <div key={i} className="text-zinc-400">
-                {log}
+      <div className="flex-1 overflow-y-auto p-2 font-mono text-xs">
+        {activeTab === "checks" ? (
+          checks.length === 0 ? (
+            <div className="text-zinc-600 text-center py-4">
+              No checks run yet.
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {checks.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center gap-2 px-2 py-1 rounded hover:bg-zinc-900"
+                >
+                  {statusIcon(c.status)}
+                  <span className="text-zinc-300 w-20">{c.type}</span>
+                  <span className="text-zinc-500 text-[10px]">{c.command}</span>
+                  {c.status === "failed" && c.stderr && (
+                    <span className="text-red-400 text-[10px] truncate flex-1">{c.stderr}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          <div className="space-y-0.5">
+            {logs.map((l, i) => (
+              <div key={i} className="text-zinc-400 whitespace-pre-wrap">
+                {l}
               </div>
             ))}
           </div>
