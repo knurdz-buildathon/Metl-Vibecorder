@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { subscribeToEvents } from "@/lib/events";
 
 export async function GET(
   _request: Request,
@@ -15,17 +16,24 @@ export async function GET(
 
       send({ type: "connected", sessionId: id });
 
-      // Keep-alive
+      const handler = (evt: any) => {
+        send(evt);
+      };
+
+      const unsubscribe = subscribeToEvents(id, handler);
+
+      // Keep-alive heartbeat
       const interval = setInterval(() => send({ type: "heartbeat", at: Date.now() }), 15000);
 
       // Cleanup
-      const cleanup = () => {
+      return () => {
         clearInterval(interval);
+        unsubscribe();
         controller.close();
       };
-
-      // Client disconnect
-      return cleanup;
+    },
+    cancel(reason) {
+      console.log(`SSE stream canceled for session ${id}:`, reason);
     },
   });
 

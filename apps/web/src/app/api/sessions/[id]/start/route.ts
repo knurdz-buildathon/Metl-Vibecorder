@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { callAgentGenerate } from "@/lib/orchestrator";
+import { publishEvent } from "@/lib/events";
 
 export async function POST(
   _request: Request,
@@ -8,35 +9,89 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const session = await prisma.session.findUnique({ where: { id } });
+    const session = await prisma.session.findUnique({
+      where: { id },
+      include: { messages: true },
+    });
     if (!session) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    // Determine next status based on session mode
-    const modeStr: string = (session.mode as string) || "AGENT";
-    let nextStatus: string;
-    if (modeStr === "ASK") {
-      nextStatus = "context_creating";
-    } else if (modeStr === "PLAN") {
-      nextStatus = "planning";
-    } else {
-      nextStatus = "implementing";
-    }
+    const modeStr = (session.mode as string) || "AGENT";
+    const nextStatusMap: Record<string, string> = {
+      ASK: "context_creating",
+      PLAN: "planning",
+      AGENT: "implementing",
+      REPAIR: "fixing",
+      REVIEW: "repo_analyzing",
+    };
+    const nextStatus = nextStatusMap[modeStr] || "implementing";
 
     await prisma.session.update({
       where: { id },
       data: { status: nextStatus as any },
     });
 
-    // Call agent service asynchronously (fire-and-forget)
-    callAgentGenerate({
-      session_id: id,
-      mode: modeStr.toLowerCase(),
-      user_prompt: session.userPrompt,
-    }).catch((err: Error) => {
-      console.error("Agent call failed:", err);
-    });
+    publishEvent(id, "status_change", { status: nextStatus, mode: modeStr });
+
+    // Build context from conversation
+    const contextMessages = session.messages
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => `${m.role}: ${m.content}`)
+      .join("\n");
+
+    // Call agent service asynchronously
+    (async () => {
+      try {
+        publishEvent(id, "agent_call_start", { mode: modeStr });
+
+        const result = await callAgentGenerate({
+          session_id: id,
+          mode: modeStr.toLowerCase(),
+          user_prompt: session.userPrompt,
+          project_context: contextMessages,
+        });
+
+        publishEvent(id, "agent_call_complete", { result });
+
+        // Update session with result and store bot message
+        if (result?.message || result?.content) {
+          const content = result.message || result.content;
+          await prisma.chatMessage.create({
+            data: {
+              sessionId: id,
+              role: "assistant",
+              content,
+              mode: modeStr as any,
+            },
+          });
+          publishEvent(id, "new_message", { role: "assistant", content });
+        }
+
+        // Handle plan approval mode
+        if (modeStr === "PLAN" && result?.plan) {
+          await prisma.session.update({
+            where: { id },
+            data: { status: "awaiting_plan_approval" as any },
+          });
+          publishEvent(id, "awaiting_approval", { type: "plan" });
+        } else {
+          await prisma.session.update({
+            where: { id },
+            data: { status: "completed" as any },
+          });
+          publishEvent(id, "status_change", { status: "completed" });
+        }
+      } catch (err: any) {
+        console.error("Agent async call failed:", err);
+        publishEvent(id, "agent_error", { error: err.message });
+        await prisma.session.update({
+          where: { id },
+          data: { status: "failed" as any },
+        });
+        publishEvent(id, "status_change", { status: "failed" });
+      }
+    })();
 
     return NextResponse.json({
       started: true,

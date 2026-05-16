@@ -82,7 +82,7 @@ export default function SessionWorkspacePage() {
     };
 
     load();
-    // Poll every 5s while implementing/testing/fixing
+    // Poll every 5s while implementing/testing/fixing/repairing
     interval = setInterval(() => {
       if (!cancelled) load();
     }, 5000);
@@ -93,15 +93,45 @@ export default function SessionWorkspacePage() {
     };
   }, [sessionId]);
 
-  // Append SSE events to logs
+  // React to SSE events
   useEffect(() => {
     if (events.length === 0) return;
     const latest = events[events.length - 1];
+    if (!latest) return;
+
+    // Log every event
     setLogs((prev) => [
       ...prev,
-      `[${new Date().toLocaleTimeString()}] Event: ${latest.type || JSON.stringify(latest).slice(0, 80)}`,
+      `[${new Date().toLocaleTimeString()}] ${latest.type || "event"}`,
     ]);
-  }, [events]);
+
+    switch (latest.type) {
+      case "status_change":
+        setStatus(latest.payload?.status || status);
+        break;
+      case "new_message":
+        if (latest.payload?.content && latest.payload?.role === "assistant") {
+          const msg: ChatMessage = {
+            id: `sse-${Date.now()}`,
+            sessionId,
+            role: "assistant",
+            content: latest.payload.content,
+            mode: latest.payload.mode || mode,
+            createdAt: new Date().toISOString(),
+          };
+          setMessages((prev) => [...prev, msg]);
+        }
+        break;
+      case "agent_error":
+        setError(latest.payload?.error || "Agent error");
+        break;
+      case "awaiting_approval":
+        setStatus("awaiting_plan_approval");
+        break;
+      default:
+        break;
+    }
+  }, [events, sessionId]);
 
   const handleSendMessage = async (content: string) => {
     const userMsg: ChatMessage = {
