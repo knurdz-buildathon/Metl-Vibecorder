@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import type { SessionMode, SessionStatus } from "@/types";
+import type { SessionMode } from "@/types";
 
 export async function GET() {
   const sessions = await prisma.session.findMany({
@@ -13,14 +13,13 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const mode: SessionMode = body.mode || "agent";
-    const status: SessionStatus = "created";
+    // UPPERCASE to match Prisma enum
+    const mode = (body.mode || "AGENT") as SessionMode;
 
     const session = await prisma.session.create({
       data: {
-        projectId: body.projectId,
-        mode,
-        status,
+        projectId: body.projectId || "default",
+        mode: mode as any,
         userPrompt: body.userPrompt,
         modelUsed: process.env.GEMINI_MODEL || "gemini-3.1-pro-preview-customtools",
         promptVersion: "0.1.0",
@@ -31,8 +30,8 @@ export async function POST(request: Request) {
       data: {
         sessionId: session.id,
         role: "system",
-        content: `Session started in ${mode.toUpperCase()} mode.`,
-        mode,
+        content: `Session started in ${mode} mode.`,
+        mode: mode as any,
       },
     });
 

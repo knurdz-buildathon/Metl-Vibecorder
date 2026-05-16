@@ -10,27 +10,27 @@ interface ModeSelectorProps {
 
 const modes: { value: SessionMode; label: string; description: string }[] = [
   {
-    value: "ask",
+    value: "ASK",
     label: "Ask",
     description: "Understand the repo. No edits.",
   },
   {
-    value: "plan",
+    value: "PLAN",
     label: "Plan",
     description: "Generate a plan. Wait for approval.",
   },
   {
-    value: "agent",
+    value: "AGENT",
     label: "Agent",
     description: "Build automatically with checks.",
   },
   {
-    value: "repair",
+    value: "REPAIR",
     label: "Repair",
     description: "Fix failed checks.",
   },
   {
-    value: "review",
+    value: "REVIEW",
     label: "Review",
     description: "Review code and report risks.",
   },

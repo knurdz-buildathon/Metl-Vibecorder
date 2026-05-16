@@ -13,25 +13,28 @@ export async function POST(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    // Update status
-    const nextStatus =
-      session.mode === "ask"
-        ? "context_creating"
-        : session.mode === "plan"
-        ? "planning"
-        : "implementing";
+    // Determine next status based on session mode
+    const modeStr: string = (session.mode as string) || "AGENT";
+    let nextStatus: string;
+    if (modeStr === "ASK") {
+      nextStatus = "context_creating";
+    } else if (modeStr === "PLAN") {
+      nextStatus = "planning";
+    } else {
+      nextStatus = "implementing";
+    }
 
     await prisma.session.update({
       where: { id },
-      data: { status: nextStatus },
+      data: { status: nextStatus as any },
     });
 
     // Call agent service asynchronously (fire-and-forget)
     callAgentGenerate({
       session_id: id,
-      mode: session.mode.toLowerCase(),
+      mode: modeStr.toLowerCase(),
       user_prompt: session.userPrompt,
-    }).catch((err) => {
+    }).catch((err: Error) => {
       console.error("Agent call failed:", err);
     });
 

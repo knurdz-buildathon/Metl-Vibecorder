@@ -10,7 +10,7 @@ import type { SessionMode } from "@/types";
 export default function NewWorkspacePage() {
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
-  const [mode, setMode] = useState<SessionMode>("agent");
+  const [mode, setMode] = useState<SessionMode>("AGENT");
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState("");
 

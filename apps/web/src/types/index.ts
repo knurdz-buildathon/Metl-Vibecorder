@@ -1,4 +1,5 @@
-export type SessionMode = "ask" | "plan" | "agent" | "repair" | "review";
+// These match Prisma enums exactly (UPPERCASE for enums)
+export type SessionMode = "ASK" | "PLAN" | "AGENT" | "REPAIR" | "REVIEW";
 
 export type SessionStatus =
   | "created"
@@ -16,6 +17,8 @@ export type SessionStatus =
   | "fixing"
   | "repairing"
   | "ready_for_deployment"
+  | "waiting_deployment_approval"
+  | "deployment_handoff"
   | "completed"
   | "failed"
   | "paused";
@@ -45,7 +48,7 @@ export interface CheckRun {
   id: string;
   sessionId: string;
   type: string;
-  status: "pending" | "passed" | "failed";
+  status: "pending" | "passed" | "failed" | "skipped";
   command: string;
   stdout?: string;
   stderr?: string;

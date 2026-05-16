@@ -17,7 +17,7 @@ export default function SessionWorkspacePage() {
   const sessionId = params.id as string;
   const { connected, events } = useSessionEvents(sessionId);
 
-  const [mode, setMode] = useState<SessionMode>("agent");
+  const [mode, setMode] = useState<SessionMode>("AGENT");
   const [status, setStatus] = useState<SessionStatus>("created");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [checks, setChecks] = useState<CheckRun[]>([]);
