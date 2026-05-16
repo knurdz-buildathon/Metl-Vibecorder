@@ -1,51 +1,99 @@
 # Metl-VibeCoder
 
-**Metl-VibeCoder** is a Gemini-powered AI coding workspace.
+## What This Is
 
-A user describes what they want to build or change, and the system understands the project, generates or modifies code, runs checks, repairs problems, and explains what it did. It is an AI coding assistant + browser IDE + repo understanding + safe code generation + test/repair system + final engineering report.
+Metl-VibeCoder is a **Gemini-powered AI coding workspace**.
 
-## Modes
+- **Ask** — understand the repo without editing
+- **Plan** — generate an implementation plan, wait for approval
+- **Agent** — build automatically with checks and repair
+- **Repair** — fix failed checks
+- **Review** — get a final quality/risk summary
 
-- **Ask** — understand only (no edits)
-- **Plan** — plan first, then build after approval
-- **Agent** — build automatically
-- **Repair** — fix broken code after checks fail
-- **Review** — review final code for risks and quality
+## Architecture
 
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS, shadcn/ui, Monaco Editor |
-| Backend API | Next.js API Routes, Prisma, PostgreSQL, Redis |
-| AI Agent | Python 3.11, FastAPI, Google Gemini SDK |
-| IDE | OpenVSCode Server (code-server) |
-| Testing | Playwright |
-| Deployment | Docker Compose, Nginx, GCP VM |
+```
++------------+     REST/SSE     +------------+
+|  Next.js   | <------------->  |  FastAPI   |
+|   (Web)    |                  |  (Agent)   |
++------------+                  +------------+
+      |                               |
+   Prisma                          Gemini
+  Postgres                        Vertex AI
+   Redis                      / Developer API
+```
 
 ## Quick Start
 
 ```bash
-# Copy environment template
+# 1. Copy and configure environment
 cp .env.example .env
-# Fill in your Gemini API key, GitHub OAuth credentials, etc.
+# Edit .env with your Gemini API key (developer mode) or Google Cloud credentials (vertex mode)
 
-# Start all services
-docker compose up --build
+# 2. Start infrastructure
+docker compose up -d postgres redis
 
-# Or run locally (requires Node.js 20+, Python 3.11+, PostgreSQL, Redis)
-cd apps/web && npm install && npx prisma migrate dev && npm run dev
-cd apps/agent && pip install -r requirements.txt && uvicorn src.main:app --reload
+# 3. Run database migrations
+cd apps/web
+npx prisma migrate dev
+
+# 4. Start the web app (terminal 1)
+npm run dev
+
+# 5. Start the agent service (terminal 2)
+cd apps/agent
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+uvicorn src.main:app --reload --port 8000
+
+# 6. Open http://localhost:3000
 ```
+
+## Modes
+
+| Mode | Description | Edits? | Checks? | Approval? |
+|---|---|---|---|---|
+| Ask | Answer questions about the repo | No | No | No |
+| Plan | Analyze request, create plan | No | No | Plan approval |
+| Agent | Build automatically | Yes | Yes | No |
+| Repair | Fix failed checks | Yes | Re-run | No |
+| Review | Risk/quality summary | No | No | No |
+
+## Configuration
+
+### Gemini Developer Mode (local)
+
+```env
+GEMINI_PROVIDER=developer
+GEMINI_API_KEY=your_key_from_ai.google.dev
+GEMINI_MODEL=gemini-3.1-pro-preview-customtools
+```
+
+### Gemini Vertex AI (production)
+
+```env
+GEMINI_PROVIDER=vertex
+GOOGLE_CLOUD_PROJECT=your-gcp-project
+GOOGLE_CLOUD_LOCATION=us-central1
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+```
+
+## Safety
+
+- `.env` files are protected from edits
+- `.git` internals are protected
+- Force git operations are blocked
+- Max repair attempts: `VIBECODER_MAX_REPAIR_ATTEMPTS` (default 2)
+- Internal docs stored outside user workspace
 
 ## Project Structure
 
 ```
 metl-vibecoder/
 ├── apps/
-│   ├── web/          # Next.js frontend + API routes
-│   ├── agent/        # Python FastAPI AI agent service
-│   └── workspace-image/  # Docker image for user code workspaces
+│   ├── web/          # Next.js 15 + React 19 frontend + API routes
+│   ├── agent/        # Python FastAPI agent service
+│   └── workspace-image/  # Docker image for user workspaces
 ├── docker-compose.yml
 ├── nginx.conf
 └── .env.example
