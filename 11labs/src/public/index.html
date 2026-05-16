@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Metl Speech Lab</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">ElevenLabs Scribe realtime</p>
+          <h1>Metl Speech Lab</h1>
+        </div>
+        <div id="statusBadge" class="status">Checking</div>
+      </header>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Voice To Text</h2>
+            <p id="qualityMeta" class="meta">Stable transcript mode</p>
+          </div>
+          <div class="recording-dot" data-recording-for="stt"></div>
+        </div>
+
+        <div class="controls">
+          <button id="startLive" class="primary" type="button">Start Live</button>
+          <button id="stopLive" class="secondary" type="button" disabled>Stop</button>
+          <button id="clearTranscript" class="secondary" type="button">Clear</button>
+          <button id="copyTranscript" class="secondary" type="button">Copy</button>
+        </div>
+
+        <div class="transcript-grid">
+          <div>
+            <label class="label" for="liveTranscript">Live Draft</label>
+            <div id="liveTranscript" class="live-line" aria-live="polite"></div>
+          </div>
+
+          <div>
+            <label class="label" for="finalTranscript">Final Transcript</label>
+            <textarea id="finalTranscript" class="textarea tall" placeholder="Final transcript appears here after natural pauses."></textarea>
+          </div>
+        </div>
+      </section>
+
+      <p id="message" class="message" role="status"></p>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
