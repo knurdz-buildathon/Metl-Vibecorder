@@ -68,3 +68,25 @@ export async function startSession(sessionId: string) {
   if (!res.ok) throw new Error(`Failed to start session: ${res.status}`);
   return res.json();
 }
+
+export async function getProjects() {
+  const res = await fetch(`${BASE_URL}/api/projects`);
+  if (!res.ok) throw new Error(`Failed to get projects: ${res.status}`);
+  return res.json();
+}
+
+export async function createProject(data: {
+  name: string;
+  description?: string;
+  repoUrl?: string;
+  githubRepo?: string;
+  language?: string;
+}) {
+  const res = await fetch(`${BASE_URL}/api/projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create project: ${res.status}`);
+  return res.json();
+}
