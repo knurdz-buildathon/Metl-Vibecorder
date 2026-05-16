@@ -6,7 +6,7 @@ from src.core.session_state import SessionState, SessionMode, SessionStatus
 from src.core.internal_docs import DocManager
 from src.services.gemini_client import gemini_client
 from src.services.prompt_engine import assemble_prompt, get_prompt_version
-from src.services.file_ops import safe_read_file, safe_write_file, safe_list_files, safe_create_restore_point
+from src.services.file_ops import safe_read_file, safe_write_file, safe_list_files, safe_create_restore_point, safe_git_diff, safe_git_status
 from src.services.workspace_exec import run_command
 from src.services.check_runner import run_all_checks
 from src.services.logger import logger
@@ -154,7 +154,7 @@ class VibeCoderAgent:
                 "completion_status": "done",
             }
 
-        ok, diff = safe_read_file(self.session_id, "")
+        ok, diff = safe_git_diff(self.session_id)
         prompt = assemble_prompt("repair", "Fix the build/test failure", current_diff=diff, check_results=error_logs)
         response = await gemini_client.generate(prompt)
         publish_event(self.session_id, "agent_complete", {"mode": "repair", "attempt": attempt})
@@ -180,8 +180,16 @@ class VibeCoderAgent:
 
     async def review(self, files_changed: list) -> dict:
         publish_event(self.session_id, "agent_start", {"mode": "review"})
-        ok, diff = safe_read_file(self.session_id, "")
-        ok2, check_results_text = safe_read_file(self.session_id, "")
+        ok, diff = safe_git_diff(self.session_id)
+
+        check_results = run_all_checks(self.session_id)
+        check_results_text = ""
+        for cr in check_results:
+            check_results_text += f"\n[{cr['type'].upper()}] {cr['status']}\nCommand: {cr['command']}\n"
+            if cr.get("stdout"):
+                check_results_text += f"Stdout:\n{cr['stdout'][:2000]}\n"
+            if cr.get("stderr"):
+                check_results_text += f"Stderr:\n{cr['stderr'][:2000]}\n"
 
         prompt = assemble_prompt("review", "Review the final code changes", current_diff=diff, check_results=check_results_text)
         response = await gemini_client.generate(prompt)
@@ -195,5 +203,6 @@ class VibeCoderAgent:
             "mode": "review",
             "message": response,
             "summary": response,
+            "check_results": check_results,
             "completion_status": "done",
         }
