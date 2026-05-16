@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { deleteWorkspace } from "@/lib/workspace";
 
 export async function GET(
   _request: Request,
@@ -32,6 +33,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    await deleteWorkspace(id);
     await prisma.session.delete({ where: { id } });
     return NextResponse.json({ deleted: true });
   } catch (error: any) {
