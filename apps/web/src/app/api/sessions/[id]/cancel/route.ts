@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { publishEvent } from "@/lib/events";
 
 export async function POST(
   _request: Request,
@@ -7,11 +8,12 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    await prisma.session.update({
+    const session = await prisma.session.update({
       where: { id },
-      data: { status: "paused" },
+      data: { status: "paused" as any },
     });
-    return NextResponse.json({ cancelled: true });
+    publishEvent(id, "status_change", { status: "paused" });
+    return NextResponse.json({ cancelled: true, sessionId: id });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

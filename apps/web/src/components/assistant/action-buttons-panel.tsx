@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCw, CheckCircle, XCircle, FileText } from "lucide-react";
-import type { SessionMode, SessionStatus, ChatMessage, CheckRun, FileChange } from "@/types";
-import { approveRequest, rejectRequest } from "@/lib/api";
+import { RefreshCw, CheckCircle, XCircle, FileText, StopCircle } from "lucide-react";
+import type { SessionStatus } from "@/types";
+import { approveRequest, rejectRequest, cancelSession } from "@/lib/api";
 
 interface ActionButtonsPanelProps {
   status: SessionStatus;
@@ -27,9 +27,22 @@ export default function ActionButtonsPanel({ status, sessionId, onReload }: Acti
     );
   }
 
+  const isBusy = [
+    "workspace_creating",
+    "repo_cloning",
+    "repo_analyzing",
+    "planning",
+    "implementing",
+    "testing",
+    "fixing",
+    "repairing",
+  ].includes(status);
+
   return (
     <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800">
-      <span className="text-xs text-zinc-500">Actions:</span>
+      {isBusy && (
+        <CancelButton sessionId={sessionId} onReload={onReload} />
+      )}
       <button
         onClick={onReload}
         className="text-xs text-zinc-400 hover:text-white flex items-center gap-1"
@@ -42,6 +55,34 @@ export default function ActionButtonsPanel({ status, sessionId, onReload }: Acti
   );
 }
 
+function CancelButton({ sessionId, onReload }: { sessionId: string; onReload?: () => void }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleClick = async () => {
+    if (!confirm("Cancel this session?")) return;
+    setLoading(true);
+    try {
+      await cancelSession(sessionId);
+      onReload?.();
+    } catch (e) {
+      // silent
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={loading}
+      className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 disabled:opacity-50"
+    >
+      <StopCircle size={12} />
+      Cancel
+    </button>
+  );
+}
+
 function ApproveButton({ sessionId, onReload }: { sessionId: string; onReload?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
@@ -49,10 +90,9 @@ function ApproveButton({ sessionId, onReload }: { sessionId: string; onReload?: 
   const handleClick = async () => {
     setLoading(true);
     try {
-      // Fetch pending approval for this session
       const res = await fetch(`/api/sessions/${sessionId}`);
       const data = await res.json();
-      const pending = data.session?.approvals?.find((a: any) => a.approved === null);
+      const pending = data.session?.approvalRequests?.find((a: any) => a.approved === null);
       if (pending) {
         await approveRequest(sessionId, pending.id);
       }
@@ -94,7 +134,7 @@ function RejectButton({ sessionId, onReload }: { sessionId: string; onReload?: (
     try {
       const res = await fetch(`/api/sessions/${sessionId}`);
       const data = await res.json();
-      const pending = data.session?.approvals?.find((a: any) => a.approved === null);
+      const pending = data.session?.approvalRequests?.find((a: any) => a.approved === null);
       if (pending) {
         await rejectRequest(sessionId, pending.id);
       }
