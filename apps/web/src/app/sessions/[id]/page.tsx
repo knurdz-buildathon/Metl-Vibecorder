@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import CloudIdeLayout from "@/components/workspace/cloud-ide-layout";
-import { sendMessage, getSession, cancelSession } from "@/lib/api";
+import { sendMessage, getSession } from "@/lib/api";
 import { useSessionEvents } from "@/hooks/use-session-events";
 import type {
   SessionMode,
@@ -20,6 +20,7 @@ export default function SessionWorkspacePage() {
 
   const [mode, setMode] = useState<SessionMode>("AGENT");
   const [status, setStatus] = useState<SessionStatus>("created");
+  const [workspaceUrl, setWorkspaceUrl] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [checks, setChecks] = useState<CheckRun[]>([]);
   const [fileChanges, setFileChanges] = useState<FileChange[]>([]);
@@ -29,69 +30,64 @@ export default function SessionWorkspacePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Load session from API
+  const load = useCallback(() => {
+    getSession(sessionId)
+      .then(({ session }: any) => {
+        setMode(session.mode as SessionMode);
+        setStatus(session.status as SessionStatus);
+        setWorkspaceUrl(session.workspaceUrl || "");
+        setMessages(
+          session.messages?.map((m: any) => ({
+            id: m.id,
+            sessionId: m.sessionId,
+            role: m.role,
+            content: m.content,
+            mode: m.mode as SessionMode,
+            createdAt: m.createdAt,
+          })) || []
+        );
+        setChecks(
+          session.checkRuns?.map((c: any) => ({
+            id: c.id,
+            sessionId: c.sessionId,
+            type: c.type,
+            status: c.status,
+            command: c.command,
+            stdout: c.stdout,
+            stderr: c.stderr,
+            createdAt: c.createdAt,
+          })) || []
+        );
+        setFileChanges(
+          session.fileChanges?.map((f: any) => ({
+            id: f.id,
+            sessionId: f.sessionId,
+            filePath: f.filePath,
+            operation: f.operation,
+            diff: f.diff,
+            createdAt: f.createdAt,
+          })) || []
+        );
+        setLoading(false);
+      })
+      .catch((e: any) => {
+        setError(e.message);
+        setLoading(false);
+      });
+  }, [sessionId]);
+
+  // Load session from API on mount and poll
   useEffect(() => {
     let cancelled = false;
-    let interval: NodeJS.Timeout;
-
-    const load = () => {
-      getSession(sessionId)
-        .then(({ session }: any) => {
-          if (cancelled) return;
-          setMode(session.mode as SessionMode);
-          setStatus(session.status as SessionStatus);
-          setMessages(
-            session.messages?.map((m: any) => ({
-              id: m.id,
-              sessionId: m.sessionId,
-              role: m.role,
-              content: m.content,
-              mode: m.mode as SessionMode,
-              createdAt: m.createdAt,
-            })) || []
-          );
-          setChecks(
-            session.checkRuns?.map((c: any) => ({
-              id: c.id,
-              sessionId: c.sessionId,
-              type: c.type,
-              status: c.status,
-              command: c.command,
-              stdout: c.stdout,
-              stderr: c.stderr,
-              createdAt: c.createdAt,
-            })) || []
-          );
-          setFileChanges(
-            session.fileChanges?.map((f: any) => ({
-              id: f.id,
-              sessionId: f.sessionId,
-              filePath: f.filePath,
-              operation: f.operation,
-              diff: f.diff,
-              createdAt: f.createdAt,
-            })) || []
-          );
-          setLoading(false);
-        })
-        .catch((e: any) => {
-          if (cancelled) return;
-          setError(e.message);
-          setLoading(false);
-        });
-    };
-
     load();
-    // Poll every 5s while implementing/testing/fixing/repairing
-    interval = setInterval(() => {
+    const interval = setInterval(() => {
       if (!cancelled) load();
     }, 5000);
-
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [sessionId]);
+  }, [load]);
 
   // React to SSE events
   useEffect(() => {
@@ -99,7 +95,6 @@ export default function SessionWorkspacePage() {
     const latest = events[events.length - 1];
     if (!latest) return;
 
-    // Log every event
     setLogs((prev) => [
       ...prev,
       `[${new Date().toLocaleTimeString()}] ${latest.type || "event"}`,
@@ -186,6 +181,7 @@ export default function SessionWorkspacePage() {
   return (
     <CloudIdeLayout
       title={`Session: ${sessionId.slice(0, 8)}`}
+      workspaceUrl={workspaceUrl || undefined}
       mode={mode}
       status={status}
       messages={messages}
@@ -194,6 +190,7 @@ export default function SessionWorkspacePage() {
       logs={logs}
       onSendMessage={handleSendMessage}
       onModeChange={handleModeChange}
+      onReload={load}
     />
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Clock, Activity } from "lucide-react";
+import { Plus, Clock, Activity, Code2, GitBranch, ArrowRight } from "lucide-react";
 import { getHealth, getModelHealth, getAgentHealth } from "@/lib/api";
 
 interface SessionSummary {
@@ -15,6 +15,7 @@ interface SessionSummary {
 
 export default function HomePage() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [stats, setStats] = useState({ total: 0, completed: 0, failed: 0 });
   const [health, setHealth] = useState({ web: false, model: false, agent: false });
   const [loading, setLoading] = useState(true);
 
@@ -26,7 +27,13 @@ export default function HomePage() {
       getAgentHealth(),
     ])
       .then(([sessionsData, _web, model, agent]) => {
-        setSessions(sessionsData.sessions?.slice(0, 5) || []);
+        const all = sessionsData.sessions || [];
+        setSessions(all.slice(0, 5));
+        setStats({
+          total: all.length,
+          completed: all.filter((s: SessionSummary) => s.status === "completed").length,
+          failed: all.filter((s: SessionSummary) => s.status === "failed").length,
+        });
         setHealth({
           web: true,
           model: model?.configured || false,
@@ -57,12 +64,15 @@ export default function HomePage() {
             <Plus size={18} />
             New Workspace
           </Link>
-          <Link
-            href="/settings"
-            className="rounded-lg border border-zinc-700 px-6 py-3 font-semibold hover:bg-zinc-800 transition-colors"
+          <a
+            href="https://github.com/knurdz-buildathon/Metl-Vibecorder"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg border border-zinc-700 px-6 py-3 font-semibold hover:bg-zinc-800 transition-colors flex items-center gap-2"
           >
-            Settings
-          </Link>
+            <GitBranch size={16} />
+            GitHub
+          </a>
         </div>
 
         {/* Provider Status */}
@@ -73,12 +83,32 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Recent Sessions */}
-      <div className="max-w-4xl mx-auto px-6 py-12">
+      {/* Stats + Quick Actions */}
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+          {[
+            { label: "Total Sessions", value: stats.total, icon: Activity },
+            { label: "Completed", value: stats.completed, icon: Code2 },
+            { label: "Failed", value: stats.failed, icon: Clock },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 flex items-center justify-between"
+            >
+              <div>
+                <p className="text-xs text-zinc-500 uppercase tracking-wide">{s.label}</p>
+                <p className="text-2xl font-bold mt-1">{s.value}</p>
+              </div>
+              <s.icon size={24} className="text-zinc-600" />
+            </div>
+          ))}
+        </div>
+
+        {/* Recent Sessions */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold">Recent Sessions</h2>
-          <Link href="/sessions" className="text-sm text-zinc-400 hover:text-white">
-            View all &rarr;
+          <Link href="/sessions" className="text-sm text-zinc-400 hover:text-white flex items-center gap-1">
+            View all <ArrowRight size={14} />
           </Link>
         </div>
 
@@ -121,6 +151,7 @@ export default function HomePage() {
 
       {/* Modes explanation */}
       <div className="max-w-4xl mx-auto px-6 pb-16">
+        <h2 className="text-xl font-semibold mb-4">Modes</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             { title: "Ask", desc: "Understand the repo without editing." },
