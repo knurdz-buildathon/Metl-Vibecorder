@@ -31,6 +31,6 @@ class SessionState(BaseModel):
     implementation_plan: Optional[str] = None
     fix_notes: List[str] = []
     repair_attempts: int = 0
-    max_repair_attempts: int = 3
+    max_repair_attempts: int = 2
     files_changed: List[dict] = []
     checks_run: List[dict] = []

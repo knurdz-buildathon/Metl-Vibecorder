@@ -20,8 +20,14 @@ class Settings(BaseSettings):
     gemini_stable_fallback_model: str = "gemini-2.5-pro"
     gemini_max_output_tokens: int = 8192
 
+    # VibeCoder
+    vibecoder_max_repair_attempts: int = 2
+
     # Workspace
     workspace_base_dir: str = "/workspace-volumes"
+
+    # CORS
+    cors_origins: str = "http://localhost:3000"
 
     class Config:
         env_file = ".env"

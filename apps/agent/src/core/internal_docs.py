@@ -1,13 +1,19 @@
 import os
 from typing import Optional
 
+from src.config import settings
+
 
 class DocManager:
-    def __init__(self, base_dir: str = "/workspace-volumes"):
-        self.base_dir = base_dir
+    def __init__(self, base_dir: str = None):
+        # Store internal docs in agent's own workspace area, NOT inside user workspace
+        # This prevents internal docs from being committed into user repos
+        self.base_dir = base_dir or os.path.join(
+            settings.workspace_base_dir, "_internal_docs"
+        )
 
     def _session_path(self, session_id: str) -> str:
-        return os.path.join(self.base_dir, session_id, ".metl-vibecoder")
+        return os.path.join(self.base_dir, session_id)
 
     def _ensure_dir(self, session_id: str):
         path = self._session_path(session_id)

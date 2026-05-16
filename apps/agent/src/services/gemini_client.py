@@ -30,12 +30,27 @@ class GeminiClient:
         return self._configured
 
     def is_healthy(self) -> bool:
+        """Test Gemini connectivity by listing available models."""
         if not self._configured:
             return False
         try:
-            # TODO: send a minimal model list request to verify connectivity
-            return True
-        except Exception:
+            from src.config import settings
+            if settings.gemini_provider == "developer":
+                # Test with a minimal models.list() call
+                import google.generativeai as genai
+                models = genai.list_models()
+                # Just verify we got a response
+                next(models, None)
+                return True
+            elif settings.gemini_provider == "vertex":
+                import vertexai
+                from vertexai.generative_models import GenerativeModel
+                # Try to initialize the configured model
+                model = GenerativeModel(settings.gemini_model)
+                return True
+            return False
+        except Exception as e:
+            print(f"Gemini health check failed: {e}")
             return False
 
     async def generate(self, prompt: str, model: str = None) -> str:
