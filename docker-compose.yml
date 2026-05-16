@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: metlcode
+      POSTGRES_PASSWORD: metlcode
+      POSTGRES_DB: metlcode
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  agent:
+    build:
+      context: ./apps/agent
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - GEMINI_PROVIDER=${GEMINI_PROVIDER}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}
+      - GEMINI_MODEL=${GEMINI_MODEL}
+      - GEMINI_REVIEW_MODEL=${GEMINI_REVIEW_MODEL}
+      - GEMINI_FAST_MODEL=${GEMINI_FAST_MODEL}
+      - GEMINI_STABLE_FALLBACK_MODEL=${GEMINI_STABLE_FALLBACK_MODEL}
+      - GEMINI_MAX_OUTPUT_TOKENS=${GEMINI_MAX_OUTPUT_TOKENS}
+    volumes:
+      - ./workspace-volumes:/workspace-volumes
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8000:8000"
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:
