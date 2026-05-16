@@ -53,3 +53,6 @@ workspace-volumes/
 # Test outputs
 test-results/
 playwright-report/
+
+# GCP folder
+gcp/
