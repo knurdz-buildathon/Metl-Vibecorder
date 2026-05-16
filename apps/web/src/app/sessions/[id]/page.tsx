@@ -205,6 +205,7 @@ export default function SessionWorkspacePage() {
     <CloudIdeLayout
       title={`Session: ${sessionId.slice(0, 8)}`}
       workspaceUrl={workspaceUrl || undefined}
+      sessionId={sessionId}
       mode={mode}
       status={status}
       messages={messages}

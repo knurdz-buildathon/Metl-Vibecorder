@@ -10,6 +10,7 @@ import ActionButtonsPanel from "../assistant/action-buttons-panel";
 import BottomPanel from "./bottom-panel";
 import AgentStatusCard from "../assistant/agent-status-card";
 import ModeSelector from "../assistant/mode-selector";
+import FileTree from "./file-tree";
 import type { SessionMode, SessionStatus, ChatMessage, CheckRun, FileChange } from "@/types";
 
 interface CloudIdeLayoutProps {
@@ -17,6 +18,7 @@ interface CloudIdeLayoutProps {
   workspaceUrl?: string;
   mode: SessionMode;
   status: SessionStatus;
+  sessionId: string;
   messages: ChatMessage[];
   checks: CheckRun[];
   fileChanges?: FileChange[];
@@ -31,6 +33,7 @@ export default function CloudIdeLayout({
   workspaceUrl,
   mode,
   status,
+  sessionId,
   messages,
   checks,
   fileChanges = [],
@@ -40,6 +43,7 @@ export default function CloudIdeLayout({
   onReload,
 }: CloudIdeLayoutProps) {
   const [rightTab, setRightTab] = useState<"chat" | "files">("chat");
+  const [treeCollapsed, setTreeCollapsed] = useState(false);
   const isBusy = [
     "workspace_creating",
     "repo_cloning",
@@ -55,71 +59,98 @@ export default function CloudIdeLayout({
     <div className="flex h-screen bg-zinc-950 text-white overflow-hidden">
       <Sidebar />
 
-      <div className="flex flex-col flex-1 min-w-0">
-        <Topbar title={title} status={status} workspaceConnected={!!workspaceUrl} />
-
-        <div className="flex flex-1 min-h-0">
-          {/* Main editor area */}
-          <div className="flex flex-col flex-1 min-w-0">
-            <div className="flex-1 min-h-0">
-              <EditorPanel workspaceUrl={workspaceUrl} />
-            </div>
-            <BottomPanel checks={checks} logs={logs} />
+      <div className="flex flex-1 min-w-0">
+        {/* Left: File Tree */}
+        <div
+          className={`flex flex-col border-r border-zinc-800 transition-all ${
+            treeCollapsed ? "w-8" : "w-52"
+          }`}
+        >
+          <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
+            {!treeCollapsed && (
+              <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+                Explorer
+              </span>
+            )}
+            <button
+              onClick={() => setTreeCollapsed((c) => !c)}
+              className="text-zinc-500 hover:text-white text-xs"
+            >
+              {treeCollapsed ? ">" : "<"}
+            </button>
           </div>
-
-          {/* Right panel: chat + file changes */}
-          <div className="w-80 flex flex-col border-l border-zinc-800">
-            <div className="p-3 space-y-3 border-b border-zinc-800">
-              <ModeSelector
-                value={mode}
-                onChange={onModeChange || (() => {})}
-                disabled={isBusy}
-              />
-              <AgentStatusCard mode={mode} status={status} />
-
-              {/* Tabs */}
-              <div className="flex gap-1 border-b border-zinc-800 pb-2">
-                <button
-                  onClick={() => setRightTab("chat")}
-                  className={`text-xs px-2 py-1 rounded ${
-                    rightTab === "chat" ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
-                  }`}
-                >
-                  Chat ({messages.length})
-                </button>
-                <button
-                  onClick={() => setRightTab("files")}
-                  className={`text-xs px-2 py-1 rounded ${
-                    rightTab === "files" ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
-                  }`}
-                >
-                  Files ({fileChanges.length})
-                </button>
-              </div>
+          {!treeCollapsed && (
+            <div className="flex-1 overflow-y-auto p-2">
+              <FileTree sessionId={sessionId} />
             </div>
-
-            <div className="flex-1 min-h-0 overflow-hidden">
-              {rightTab === "chat" ? (
-                <>
-                  <ActionButtonsPanel
-                    status={status}
-                    sessionId={messages[0]?.sessionId || ""}
-                    onReload={onReload}
-                  />
-                  <ChatPanel
-                    messages={messages}
-                    onSend={onSendMessage}
-                    disabled={isBusy}
-                  />
-                </>
-              ) : (
-                <FileChangesPanel changes={fileChanges} />
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
-        <ProviderStatusBar />
+        {/* Center: Editor + Bottom */}
+        <div className="flex flex-col flex-1 min-w-0">
+          <Topbar title={title} status={status} workspaceConnected={!!workspaceUrl} />
+
+          <div className="flex flex-1 min-h-0">
+            <div className="flex flex-col flex-1 min-w-0">
+              <div className="flex-1 min-h-0">
+                <EditorPanel workspaceUrl={workspaceUrl} />
+              </div>
+              <BottomPanel checks={checks} logs={logs} />
+            </div>
+
+            {/* Right: Chat + Actions */}
+            <div className="w-72 flex flex-col border-l border-zinc-800">
+              <div className="p-2.5 space-y-2.5 border-b border-zinc-800">
+                <ModeSelector
+                  value={mode}
+                  onChange={onModeChange || (() => {})}
+                  disabled={isBusy}
+                />
+                <AgentStatusCard mode={mode} status={status} />
+
+                <div className="flex gap-1 border-b border-zinc-800 pb-2">
+                  <button
+                    onClick={() => setRightTab("chat")}
+                    className={`text-xs px-2 py-1 rounded ${
+                      rightTab === "chat" ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
+                    }`}
+                  >
+                    Chat
+                  </button>
+                  <button
+                    onClick={() => setRightTab("files")}
+                    className={`text-xs px-2 py-1 rounded ${
+                      rightTab === "files" ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
+                    }`}
+                  >
+                    Changes
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-hidden">
+                {rightTab === "chat" ? (
+                  <>
+                    <ActionButtonsPanel
+                      status={status}
+                      sessionId={sessionId}
+                      onReload={onReload}
+                    />
+                    <ChatPanel
+                      messages={messages}
+                      onSend={onSendMessage}
+                      disabled={isBusy}
+                    />
+                  </>
+                ) : (
+                  <FileChangesPanel changes={fileChanges} />
+                )}
+              </div>
+            </div>
+          </div>
+
+          <ProviderStatusBar />
+        </div>
       </div>
     </div>
   );

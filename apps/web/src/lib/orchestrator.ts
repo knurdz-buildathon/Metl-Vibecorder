@@ -70,3 +70,19 @@ export async function callAgentChecks(payload: {
   }
   return res.json();
 }
+
+export async function callAgentSmokeTest(payload: {
+  session_id: string;
+  url?: string;
+}) {
+  const res = await fetch(`${AGENT_URL}/checks/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: payload.session_id, check_type: "playwright" }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Agent smoke test error: ${res.status} ${err}`);
+  }
+  return res.json();
+}
