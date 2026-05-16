@@ -94,12 +94,16 @@ function ApproveButton({ sessionId, onReload }: { sessionId: string; onReload?: 
     try {
       const res = await fetch(`/api/sessions/${sessionId}`);
       const data = await res.json();
+      if (!res.ok || !data.session) {
+        throw new Error(data.error || "Session not found");
+      }
       const pending = data.session?.approvalRequests?.find((a: any) => a.approved === null);
-      if (pending) {
-        const result = await approveRequest(sessionId, pending.id);
-        if (!result.approved) {
-          throw new Error(result.error || "Approval failed");
-        }
+      if (!pending) {
+        throw new Error("No pending approval found");
+      }
+      const result = await approveRequest(sessionId, pending.id);
+      if (!result.approved) {
+        throw new Error(result.error || "Approval failed");
       }
       setDone(true);
       onReload?.();
@@ -158,12 +162,16 @@ function RejectButton({ sessionId, onReload }: { sessionId: string; onReload?: (
     try {
       const res = await fetch(`/api/sessions/${sessionId}`);
       const data = await res.json();
+      if (!res.ok || !data.session) {
+        throw new Error(data.error || "Session not found");
+      }
       const pending = data.session?.approvalRequests?.find((a: any) => a.approved === null);
-      if (pending) {
-        const result = await rejectRequest(sessionId, pending.id);
-        if (!result.rejected) {
-          throw new Error(result.error || "Rejection failed");
-        }
+      if (!pending) {
+        throw new Error("No pending approval found");
+      }
+      const result = await rejectRequest(sessionId, pending.id);
+      if (!result.rejected) {
+        throw new Error(result.error || "Rejection failed");
       }
       setDone(true);
       onReload?.();

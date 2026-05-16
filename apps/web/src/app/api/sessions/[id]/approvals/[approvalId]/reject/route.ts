@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { publishEvent } from "@/lib/events";
 
 export async function POST(
   _request: Request,
@@ -18,6 +19,7 @@ export async function POST(
         where: { id: sessionId },
         data: { status: "paused" },
       });
+      publishEvent(sessionId, "status_change", { status: "paused" });
     }
 
     return NextResponse.json({ rejected: true, approvalId });

@@ -10,8 +10,15 @@ export async function GET(
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     start(controller) {
+      let closed = false;
+
       const send = (data: object) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          closed = true;
+        }
       };
 
       send({ type: "connected", sessionId: id });
@@ -27,9 +34,14 @@ export async function GET(
 
       // Cleanup
       return () => {
+        closed = true;
         clearInterval(interval);
         unsubscribe();
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // already closed
+        }
       };
     },
     cancel(reason) {
