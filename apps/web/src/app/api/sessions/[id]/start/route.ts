@@ -55,17 +55,17 @@ export async function POST(
         publishEvent(id, "agent_call_complete", { result });
 
         // Update session with result and store bot message
-        if (result?.message || result?.content) {
-          const content = result.message || result.content;
+        const responseMessage = result.message || result.summary || result.content || "";
+        if (responseMessage) {
           await prisma.chatMessage.create({
             data: {
               sessionId: id,
               role: "assistant",
-              content,
+              content: responseMessage,
               mode: modeStr as any,
             },
           });
-          publishEvent(id, "new_message", { role: "assistant", content });
+          publishEvent(id, "new_message", { role: "assistant", content: responseMessage });
         }
 
         // Handle plan approval mode
