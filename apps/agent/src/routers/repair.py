@@ -14,7 +14,6 @@ class RepairRequest(BaseModel):
     test_logs: Optional[str] = None
     file_edits_so_far: List[dict] = []
     attempt: int = 1
-    max_attempts: int = settings.vibecoder_max_repair_attempts
 
 
 class RepairResponse(BaseModel):
@@ -23,15 +22,28 @@ class RepairResponse(BaseModel):
     summary: str
     files_changed: List[dict] = []
     next_action: Optional[str] = None
+    attempt: int = 1
+    completion_status: str = "done"
 
 
 @router.post("/", response_model=RepairResponse)
 async def repair(request: RepairRequest):
+    from src.agents.vibecoder_agent import VibeCoderAgent
+
+    agent = VibeCoderAgent(request.session_id)
+    result = await agent.repair(request.error_logs, request.attempt)
+
     max_attempts = settings.vibecoder_max_repair_attempts
-    # TODO: implement repair loop with Gemini
+    needs_more = (
+        result.get("completion_status") == "needs_repair"
+        and request.attempt < max_attempts
+    )
+
     return RepairResponse(
-        status="ok",
-        fixed=False,
-        summary="Repair mode stub. Implement fix loop with Gemini analysis.",
-        next_action="manual_fix" if request.attempt >= max_attempts else "retry",
+        status=result.get("status", "ok"),
+        fixed=result.get("fixed", False),
+        summary=result.get("summary", ""),
+        attempt=request.attempt,
+        next_action="retry" if needs_more else "manual_fix" if not result.get("fixed") else "done",
+        completion_status=result.get("completion_status", "done"),
     )

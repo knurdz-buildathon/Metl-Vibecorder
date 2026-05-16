@@ -18,14 +18,21 @@ class ReviewResponse(BaseModel):
     summary: str
     risks: List[str] = []
     notes: List[str] = []
-    readiness: str  # not_ready, needs_fix, ready_for_review, ready_for_deploy
+    readiness: str = "ready_for_review"
+    completion_status: str = "done"
 
 
 @router.post("/", response_model=ReviewResponse)
 async def review(request: ReviewRequest):
-    # TODO: implement quality review with Gemini
+    from src.agents.vibecoder_agent import VibeCoderAgent
+
+    agent = VibeCoderAgent(request.session_id)
+    result = await agent.review(request.files_changed)
+
     return ReviewResponse(
-        status="ok",
-        summary="Review mode stub. Implement quality assessment with Gemini.",
-        readiness="ready_for_review",
+        status=result.get("status", "ok"),
+        summary=result.get("summary", ""),
+        risks=result.get("risks", []),
+        readiness=result.get("readiness", "ready_for_review"),
+        completion_status=result.get("completion_status", "done"),
     )
