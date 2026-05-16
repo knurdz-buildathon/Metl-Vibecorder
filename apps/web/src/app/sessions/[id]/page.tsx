@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import CloudIdeLayout from "@/components/workspace/cloud-ide-layout";
+import { useSessionEvents } from "@/hooks/use-session-events";
 import type {
   SessionMode,
   SessionStatus,
@@ -13,6 +14,7 @@ import type {
 export default function SessionWorkspacePage() {
   const params = useParams();
   const sessionId = params.id as string;
+  const { connected, events } = useSessionEvents(sessionId);
 
   const [mode, setMode] = useState<SessionMode>("agent");
   const [status, setStatus] = useState<SessionStatus>("created");
@@ -26,10 +28,22 @@ export default function SessionWorkspacePage() {
       createdAt: new Date().toISOString(),
     },
   ]);
-  const [checks] = useState<CheckRun[]>([]);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [checks, setChecks] = useState<CheckRun[]>([]);
+  const [logs, setLogs] = useState<string[]>([
+    `[${new Date().toLocaleTimeString()}] SSE ${connected ? "connected" : "disconnected"}`,
+  ]);
 
-  const handleSendMessage = (content: string) => {
+  // Append incoming events to logs
+  useState(() => {
+    events.forEach((ev) => {
+      setLogs((prev) => [
+        ...prev,
+        `[${new Date().toLocaleTimeString()}] Event: ${ev.type || JSON.stringify(ev).slice(0, 100)}`,
+      ]);
+    });
+  });
+
+  const handleSendMessage = async (content: string) => {
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       sessionId,
@@ -40,7 +54,18 @@ export default function SessionWorkspacePage() {
     };
     setMessages((prev) => [...prev, userMsg]);
 
-    // Simulate assistant response
+    // Send to API
+    try {
+      await fetch(`/api/sessions/${sessionId}/message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "user", content, mode }),
+      });
+    } catch (e: any) {
+      setLogs((prev) => [...prev, `Error sending message: ${e.message}`]);
+    }
+
+    // Simulate response for demo
     setTimeout(() => {
       const assistantMsg: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
