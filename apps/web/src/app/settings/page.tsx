@@ -2,17 +2,27 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Cpu, Wifi, Database, Server, ArrowLeft } from "lucide-react";
+import { Cpu, Server, Database, ArrowLeft, RefreshCw } from "lucide-react";
 import { getProviderStatus } from "@/lib/api";
 
 export default function SettingsPage() {
   const [providers, setProviders] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await getProviderStatus();
+      setProviders(data);
+    } catch (e) {
+      setProviders(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    getProviderStatus()
-      .then(setProviders)
-      .finally(() => setLoading(false));
+    load();
   }, []);
 
   return (
@@ -24,6 +34,17 @@ export default function SettingsPage() {
             <ArrowLeft size={16} />
             Back
           </Link>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={load}
+            disabled={loading}
+            className="flex items-center gap-1 rounded-md bg-zinc-800 text-white px-3 py-1.5 text-xs hover:bg-zinc-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+            Re-check
+          </button>
         </div>
 
         {loading && <p className="text-zinc-500">Loading provider status...</p>}
