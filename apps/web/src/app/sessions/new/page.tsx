@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ModeSelector from "@/components/assistant/mode-selector";
+import { createSession } from "@/lib/api";
 import type { SessionMode } from "@/types";
 
 export default function NewWorkspacePage() {
@@ -11,16 +12,23 @@ export default function NewWorkspacePage() {
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<SessionMode>("agent");
   const [isStarting, setIsStarting] = useState(false);
+  const [error, setError] = useState("");
 
   const handleStart = async () => {
     if (!prompt.trim()) return;
     setIsStarting(true);
-    // TODO: call API to create session
-    // const session = await createSession({ prompt, mode });
-    // router.push(`/sessions/${session.id}/workspace`);
-    
-    // For now, redirect to a demo session
-    router.push(`/sessions/demo`);
+    setError("");
+
+    try {
+      const { session } = await createSession({
+        userPrompt: prompt,
+        mode,
+      });
+      router.push(`/sessions/${session.id}`);
+    } catch (e: any) {
+      setError(e.message || "Failed to create session");
+      setIsStarting(false);
+    }
   };
 
   return (
@@ -48,6 +56,12 @@ export default function NewWorkspacePage() {
             <label className="block text-sm text-zinc-400 mb-2">Mode</label>
             <ModeSelector value={mode} onChange={setMode} />
           </div>
+
+          {error && (
+            <div className="rounded-lg bg-red-900/30 border border-red-800 text-red-300 px-4 py-2 text-sm">
+              {error}
+            </div>
+          )}
 
           <button
             onClick={handleStart}
