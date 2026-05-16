@@ -36,13 +36,22 @@ export default function ChatPanel({ messages, onSend, disabled }: ChatPanelProps
               </div>
             )}
             <div
-              className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+              className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
                 msg.role === "user"
                   ? "bg-zinc-800 text-white"
                   : "bg-zinc-900 text-zinc-200 border border-zinc-800"
               }`}
             >
-              {msg.content}
+              {msg.role === "assistant" ? (
+                <MarkdownContent content={msg.content} />
+              ) : (
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+              )}
+              {msg.mode && (
+                <span className="text-[10px] text-zinc-500 mt-1 block">
+                  mode: {msg.mode}
+                </span>
+              )}
             </div>
             {msg.role === "user" && (
               <div className="w-6 h-6 rounded bg-zinc-700 flex items-center justify-center flex-shrink-0 mt-1">
@@ -70,7 +79,7 @@ export default function ChatPanel({ messages, onSend, disabled }: ChatPanelProps
           <input
             name="message"
             type="text"
-            placeholder="Ask VibeCoder..."
+            placeholder={disabled ? "Agent is working..." : "Ask VibeCoder..."}
             disabled={disabled}
             className="flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
           />
@@ -83,6 +92,96 @@ export default function ChatPanel({ messages, onSend, disabled }: ChatPanelProps
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  // Simple markdown-like rendering without a full parser
+  const lines = content.split("\n");
+  const elements: React.ReactNode[] = [];
+  let inCodeBlock = false;
+  let codeContent: string[] = [];
+  let codeLang = "";
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.startsWith("```")) {
+      if (!inCodeBlock) {
+        inCodeBlock = true;
+        codeLang = line.slice(3).trim();
+        codeContent = [];
+      } else {
+        inCodeBlock = false;
+        elements.push(
+          <CodeBlock key={i} lang={codeLang} content={codeContent.join("\n")} />
+        );
+        codeContent = [];
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeContent.push(line);
+      continue;
+    }
+
+    if (line.startsWith("# ")) {
+      elements.push(
+        <h4 key={i} className="text-sm font-bold text-white mt-2 mb-1">
+          {line.slice(2)}
+        </h4>
+      );
+    } else if (line.startsWith("## ")) {
+      elements.push(
+        <h5 key={i} className="text-xs font-bold text-zinc-300 mt-2 mb-1">
+          {line.slice(3)}
+        </h5>
+      );
+    } else if (line.startsWith("- ") || line.startsWith("* ")) {
+      elements.push(
+        <li key={i} className="text-xs text-zinc-300 ml-3">
+          {line.slice(2)}
+        </li>
+      );
+    } else if (line.startsWith("> ")) {
+      elements.push(
+        <blockquote key={i} className="text-xs text-zinc-400 border-l-2 border-zinc-600 pl-2 my-1">
+          {line.slice(2)}
+        </blockquote>
+      );
+    } else if (line.trim()) {
+      elements.push(
+        <p key={i} className="text-xs text-zinc-200 my-1">
+          {line}
+        </p>
+      );
+    } else {
+      elements.push(<div key={i} className="h-1" />);
+    }
+  }
+
+  if (inCodeBlock && codeContent.length > 0) {
+    elements.push(
+      <CodeBlock key="end" lang={codeLang} content={codeContent.join("\n")} />
+    );
+  }
+
+  return <div className="space-y-0.5">{elements}</div>;
+}
+
+function CodeBlock({ lang, content }: { lang: string; content: string }) {
+  return (
+    <div className="my-1 rounded bg-zinc-900 border border-zinc-800 overflow-hidden">
+      {lang && (
+        <div className="px-2 py-0.5 bg-zinc-800 text-[10px] text-zinc-500 uppercase">
+          {lang}
+        </div>
+      )}
+      <pre className="px-2 py-1 text-[10px] text-zinc-300 overflow-x-auto font-mono">
+        <code>{content}</code>
+      </pre>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ModeSelector from "@/components/assistant/mode-selector";
-import { createSession } from "@/lib/api";
+import { createSession, startSession } from "@/lib/api";
 import type { SessionMode } from "@/types";
 
 export default function NewWorkspacePage() {
@@ -24,6 +24,8 @@ export default function NewWorkspacePage() {
         userPrompt: prompt,
         mode,
       });
+      // Kick off agent asynchronously
+      await startSession(session.id);
       router.push(`/sessions/${session.id}`);
     } catch (e: any) {
       setError(e.message || "Failed to create session");

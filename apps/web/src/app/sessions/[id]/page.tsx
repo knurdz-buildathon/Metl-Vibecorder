@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import CloudIdeLayout from "@/components/workspace/cloud-ide-layout";
-import { sendMessage, getSession } from "@/lib/api";
+import { sendMessage, getSession, cancelSession } from "@/lib/api";
 import { useSessionEvents } from "@/hooks/use-session-events";
 import type {
   SessionMode,
   SessionStatus,
   ChatMessage,
   CheckRun,
+  FileChange,
 } from "@/types";
 
 export default function SessionWorkspacePage() {
@@ -21,6 +22,7 @@ export default function SessionWorkspacePage() {
   const [status, setStatus] = useState<SessionStatus>("created");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [checks, setChecks] = useState<CheckRun[]>([]);
+  const [fileChanges, setFileChanges] = useState<FileChange[]>([]);
   const [logs, setLogs] = useState<string[]>([
     `[${new Date().toLocaleTimeString()}] SSE ${connected ? "connected" : "disconnected"}`,
   ]);
@@ -30,42 +32,64 @@ export default function SessionWorkspacePage() {
   // Load session from API
   useEffect(() => {
     let cancelled = false;
-    getSession(sessionId)
-      .then(({ session }: any) => {
-        if (cancelled) return;
-        setMode(session.mode as SessionMode);
-        setStatus(session.status as SessionStatus);
-        setMessages(
-          session.messages?.map((m: any) => ({
-            id: m.id,
-            sessionId: m.sessionId,
-            role: m.role,
-            content: m.content,
-            mode: m.mode,
-            createdAt: m.createdAt,
-          })) || []
-        );
-        setChecks(
-          session.checkRuns?.map((c: any) => ({
-            id: c.id,
-            sessionId: c.sessionId,
-            type: c.type,
-            status: c.status,
-            command: c.command,
-            stdout: c.stdout,
-            stderr: c.stderr,
-            createdAt: c.createdAt,
-          })) || []
-        );
-        setLoading(false);
-      })
-      .catch((e: any) => {
-        if (cancelled) return;
-        setError(e.message);
-        setLoading(false);
-      });
+    let interval: NodeJS.Timeout;
+
+    const load = () => {
+      getSession(sessionId)
+        .then(({ session }: any) => {
+          if (cancelled) return;
+          setMode(session.mode as SessionMode);
+          setStatus(session.status as SessionStatus);
+          setMessages(
+            session.messages?.map((m: any) => ({
+              id: m.id,
+              sessionId: m.sessionId,
+              role: m.role,
+              content: m.content,
+              mode: m.mode as SessionMode,
+              createdAt: m.createdAt,
+            })) || []
+          );
+          setChecks(
+            session.checkRuns?.map((c: any) => ({
+              id: c.id,
+              sessionId: c.sessionId,
+              type: c.type,
+              status: c.status,
+              command: c.command,
+              stdout: c.stdout,
+              stderr: c.stderr,
+              createdAt: c.createdAt,
+            })) || []
+          );
+          setFileChanges(
+            session.fileChanges?.map((f: any) => ({
+              id: f.id,
+              sessionId: f.sessionId,
+              filePath: f.filePath,
+              operation: f.operation,
+              diff: f.diff,
+              createdAt: f.createdAt,
+            })) || []
+          );
+          setLoading(false);
+        })
+        .catch((e: any) => {
+          if (cancelled) return;
+          setError(e.message);
+          setLoading(false);
+        });
+    };
+
+    load();
+    // Poll every 5s while implementing/testing/fixing
+    interval = setInterval(() => {
+      if (!cancelled) load();
+    }, 5000);
+
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, [sessionId]);
 
@@ -91,7 +115,7 @@ export default function SessionWorkspacePage() {
     setMessages((prev) => [...prev, userMsg]);
 
     try {
-      await sendMessage(sessionId, { role: "user", content, mode });
+      await sendMessage(sessionId, { role: "user", content, mode: mode as string });
     } catch (e: any) {
       setLogs((prev) => [...prev, `Error sending message: ${e.message}`]);
     }
@@ -101,7 +125,7 @@ export default function SessionWorkspacePage() {
     setMode(newMode);
     setLogs((prev) => [
       ...prev,
-      `[${new Date().toLocaleTimeString()}] Mode changed to ${newMode.toUpperCase()}`,
+      `[${new Date().toLocaleTimeString()}] Mode changed to ${newMode}`,
     ]);
   };
 
@@ -136,6 +160,7 @@ export default function SessionWorkspacePage() {
       status={status}
       messages={messages}
       checks={checks}
+      fileChanges={fileChanges}
       logs={logs}
       onSendMessage={handleSendMessage}
       onModeChange={handleModeChange}

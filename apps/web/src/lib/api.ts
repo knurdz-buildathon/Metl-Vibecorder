@@ -60,3 +60,11 @@ export async function getProviderStatus() {
   const res = await fetch(`${BASE_URL}/api/providers/status`);
   return res.json();
 }
+
+export async function startSession(sessionId: string) {
+  const res = await fetch(`${BASE_URL}/api/sessions/${sessionId}/start`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`Failed to start session: ${res.status}`);
+  return res.json();
+}
