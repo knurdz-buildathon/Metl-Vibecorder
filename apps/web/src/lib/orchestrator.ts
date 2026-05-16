@@ -78,7 +78,11 @@ export async function callAgentSmokeTest(payload: {
   const res = await fetch(`${AGENT_URL}/checks/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: payload.session_id, check_type: "playwright" }),
+    body: JSON.stringify({
+      session_id: payload.session_id,
+      check_type: "playwright",
+      url: payload.url,
+    }),
   });
   if (!res.ok) {
     const err = await res.text();

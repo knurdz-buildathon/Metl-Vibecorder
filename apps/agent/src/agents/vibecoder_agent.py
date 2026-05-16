@@ -1,13 +1,18 @@
 import json
-import time
+import re
 from typing import Optional
 from src.config import settings
-from src.core.session_state import SessionState, SessionMode, SessionStatus
 from src.core.internal_docs import DocManager
 from src.services.gemini_client import gemini_client
 from src.services.prompt_engine import assemble_prompt, get_prompt_version
-from src.services.file_ops import safe_read_file, safe_write_file, safe_list_files, safe_create_restore_point, safe_git_diff, safe_git_status
-from src.services.workspace_exec import run_command
+from src.services.file_ops import (
+    safe_create_restore_point,
+    safe_delete_file,
+    safe_git_diff,
+    safe_list_files,
+    safe_read_file,
+    safe_write_file,
+)
 from src.services.check_runner import run_all_checks
 from src.services.logger import logger
 
@@ -38,12 +43,77 @@ class VibeCoderAgent:
 
         return "\n".join(context_parts)
 
-    def _parse_and_apply_file_edits(self, response: str) -> list[dict]:
-        """Parse code block file edits from the LLM response and write them to disk."""
-        import re
+    def _parse_response_json(self, response: str) -> Optional[dict]:
+        """Parse raw or fenced JSON returned by the model."""
+        text = response.strip()
+        fenced = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL | re.IGNORECASE)
+        if fenced:
+            text = fenced.group(1).strip()
+        try:
+            payload = json.loads(text)
+            return payload if isinstance(payload, dict) else None
+        except json.JSONDecodeError:
+            return None
 
+    def _response_text(self, response: str, *keys: str) -> str:
+        payload = self._parse_response_json(response)
+        if not payload:
+            return response
+
+        for key in keys:
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+            if isinstance(value, (dict, list)):
+                return json.dumps(value, indent=2)
+
+        for key in ("answer", "summary", "quality_summary", "plan"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+            if isinstance(value, (dict, list)):
+                return json.dumps(value, indent=2)
+        return response
+
+    def _parse_and_apply_file_edits(self, response: str) -> list[dict]:
+        """Parse structured file edits from the LLM response and apply them safely."""
         edits = []
-        # Look for ```file:<path> blocks
+        payload = self._parse_response_json(response)
+
+        if payload and isinstance(payload.get("file_edits"), list):
+            for edit in payload["file_edits"]:
+                if not isinstance(edit, dict):
+                    continue
+                file_path = str(edit.get("path") or "").strip()
+                operation = str(edit.get("operation") or "modify").lower()
+                content = edit.get("content")
+                if not file_path:
+                    continue
+
+                if operation == "delete":
+                    ok, msg = safe_delete_file(self.session_id, file_path)
+                    normalized_op = "deleted"
+                else:
+                    if content is None:
+                        logger.error(f"Skipping edit without content for {file_path}")
+                        continue
+                    exists_ok, _ = safe_read_file(self.session_id, file_path)
+                    normalized_op = "modified" if exists_ok else "created"
+                    ok, msg = safe_write_file(self.session_id, file_path, str(content))
+
+                if ok:
+                    publish_event(self.session_id, "file_change", {
+                        "file_path": file_path,
+                        "operation": normalized_op,
+                    })
+                    edits.append({"path": file_path, "operation": normalized_op})
+                else:
+                    logger.error(f"Failed to apply edit for {file_path}: {msg}")
+
+        if edits:
+            return edits
+
+        # Legacy fallback for older prompt responses: ```file:path blocks.
         pattern = r"```file:([^\n`]+)\n(.*?)```"
         matches = re.findall(pattern, response, re.DOTALL)
 
@@ -73,12 +143,13 @@ class VibeCoderAgent:
         context = self._build_project_context(".")
         prompt = assemble_prompt("ask", user_prompt, project_context=context)
         response = await gemini_client.generate(prompt)
+        message = self._response_text(response, "answer")
         publish_event(self.session_id, "agent_complete", {"mode": "ask"})
         return {
             "status": "ok",
             "mode": "ask",
-            "answer": response,
-            "message": response,
+            "answer": message,
+            "message": message,
             "completion_status": "done",
         }
 
@@ -87,18 +158,19 @@ class VibeCoderAgent:
         context = self._build_project_context(".")
         prompt = assemble_prompt("plan", user_prompt, project_context=context)
         response = await gemini_client.generate(prompt)
+        plan_text = self._response_text(response, "plan")
         publish_event(self.session_id, "agent_complete", {"mode": "plan"})
 
         # Save plan
-        self.doc_manager.upsert_implementation_plan(self.session_id, response)
+        self.doc_manager.upsert_implementation_plan(self.session_id, plan_text)
         version = get_prompt_version("plan")
         self.doc_manager.upsert_super_prompt_version(self.session_id, json.dumps(version, indent=2))
 
         return {
             "status": "ok",
             "mode": "plan",
-            "plan": response,
-            "message": response,
+            "plan": plan_text,
+            "message": plan_text,
             "prompt_version": version,
             "completion_status": "needs_approval",
         }
@@ -119,6 +191,7 @@ class VibeCoderAgent:
 
         response = await gemini_client.generate(prompt)
         publish_event(self.session_id, "agent_complete", {"mode": "agent"})
+        payload = self._parse_response_json(response) or {}
 
         # Extract file edits from response and apply them
         files_changed = self._parse_and_apply_file_edits(response)
@@ -135,9 +208,17 @@ class VibeCoderAgent:
         return {
             "status": "ok",
             "mode": "agent",
-            "message": response,
-            "summary": "Agent mode completed.",
+            "message": self._response_text(response, "summary"),
+            "summary": payload.get("summary") or "Agent mode completed.",
             "files_changed": files_changed,
+            "commands_run": [
+                cmd.get("command", "") if isinstance(cmd, dict) else str(cmd)
+                for cmd in payload.get("commands", [])
+            ],
+            "tests_to_run": [
+                test.get("command", "") if isinstance(test, dict) else str(test)
+                for test in payload.get("tests", [])
+            ],
             "check_results": check_results,
             "needs_repair": len(failed) > 0,
             "completion_status": "needs_repair" if failed else "done",
@@ -158,10 +239,13 @@ class VibeCoderAgent:
         prompt = assemble_prompt("repair", "Fix the build/test failure", current_diff=diff, check_results=error_logs)
         response = await gemini_client.generate(prompt)
         publish_event(self.session_id, "agent_complete", {"mode": "repair", "attempt": attempt})
+        payload = self._parse_response_json(response) or {}
+
+        files_changed = self._parse_and_apply_file_edits(response)
 
         # Save fix notes
         notes = self.doc_manager.read_doc(self.session_id, "fix-notes.md") or ""
-        notes += f"\n\n## Repair Attempt {attempt}\n{response}\n"
+        notes += f"\n\n## Repair Attempt {attempt}\n{self._response_text(response, 'summary', 'root_cause')}\n"
         self.doc_manager.upsert_fix_notes(self.session_id, notes)
 
         # Re-run checks
@@ -172,8 +256,9 @@ class VibeCoderAgent:
             "status": "ok",
             "fixed": len(failed) == 0,
             "attempt": attempt,
-            "message": response,
-            "summary": response,
+            "message": self._response_text(response, "summary", "root_cause"),
+            "summary": payload.get("summary") or self._response_text(response, "root_cause"),
+            "files_changed": files_changed,
             "check_results": check_results,
             "completion_status": "done" if len(failed) == 0 else "needs_repair",
         }
@@ -193,16 +278,20 @@ class VibeCoderAgent:
 
         prompt = assemble_prompt("review", "Review the final code changes", current_diff=diff, check_results=check_results_text)
         response = await gemini_client.generate(prompt)
+        payload = self._parse_response_json(response) or {}
+        summary = self._response_text(response, "quality_summary", "summary")
         publish_event(self.session_id, "agent_complete", {"mode": "review"})
 
         # Save final report
-        self.doc_manager.upsert_final_report(self.session_id, response)
+        self.doc_manager.upsert_final_report(self.session_id, summary)
 
         return {
             "status": "ok",
             "mode": "review",
-            "message": response,
-            "summary": response,
+            "message": summary,
+            "summary": summary,
+            "risks": payload.get("risks", []),
+            "readiness": payload.get("readiness", "ready_for_review"),
             "check_results": check_results,
             "completion_status": "done",
         }

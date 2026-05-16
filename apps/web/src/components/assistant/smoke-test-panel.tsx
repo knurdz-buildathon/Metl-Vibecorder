@@ -19,7 +19,7 @@ export default function SmokeTestPanel({ sessionId, onResult }: SmokeTestPanelPr
     setResult(null);
 
     try {
-      const res = await fetch(`/api/smoke-test`, {
+      const res = await fetch(`/api/sessions/${sessionId}/smoke-test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId }),

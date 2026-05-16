@@ -1,6 +1,5 @@
 import os
-import json
-from typing import Optional, Tuple
+from typing import Tuple
 from src.core.safety_rules import is_allowed_path
 from src.services.workspace_exec import run_command
 
@@ -22,8 +21,19 @@ def safe_write_file(session_id: str, relative_path: str, content: str) -> Tuple[
     return write_file(session_id, relative_path, content)
 
 
+def safe_delete_file(session_id: str, relative_path: str) -> Tuple[bool, str]:
+    """Delete a file in workspace with safety checks."""
+    if not is_allowed_path(relative_path):
+        return False, f"Path not allowed: {relative_path}"
+
+    from src.services.workspace_exec import delete_file
+    return delete_file(session_id, relative_path)
+
+
 def safe_list_files(session_id: str, relative_dir: str = ".") -> Tuple[bool, list]:
-    workspace = os.path.join(os.environ.get("WORKSPACE_BASE_DIR", "/workspace-volumes"), session_id)
+    base = os.path.join(os.environ.get("WORKSPACE_BASE_DIR", "/workspace-volumes"), session_id)
+    repo = os.path.join(base, "repo")
+    workspace = repo if os.path.isdir(repo) else base
     target = os.path.join(workspace, relative_dir)
 
     if not os.path.exists(target):
@@ -48,18 +58,24 @@ def safe_list_files(session_id: str, relative_dir: str = ".") -> Tuple[bool, lis
 
 
 def safe_create_restore_point(session_id: str, label: str = "auto") -> Tuple[bool, str]:
-    """Create a git stash as a restore point."""
-    rc, out, err = run_command(session_id, 
-        f'git stash push -m "vibecoder-restore-{label}-{session_id[:8]}"'
+    """Create a git stash restore point without committing user changes."""
+    rc, out, err = run_command(session_id, "git rev-parse --is-inside-work-tree")
+    if rc != 0:
+        return False, f"Workspace is not a git repo: {err or out}"
+
+    rc, out, err = run_command(session_id, "git status --porcelain")
+    if rc != 0:
+        return False, f"Could not inspect git status: {err or out}"
+    if not out.strip():
+        return True, f"No local changes to stash for restore point: {label}"
+
+    rc, out, err = run_command(
+        session_id,
+        f'git stash push -u -m "vibecoder-restore-{label}-{session_id[:8]}"',
     )
-    if rc == 0 or "No local changes" in err:
-        # Also try to make a commit if there are changes
-        run_command(session_id, "git add -A")
-        run_command(session_id, 
-            f'git commit -m "vibecoder-autosave-{label}" || true'
-        )
+    if rc == 0:
         return True, f"Restore point created: {label}"
-    return False, f"Failed to create restore point: {err}"
+    return False, f"Failed to create restore point: {err or out}"
 
 
 def safe_git_status(session_id: str) -> Tuple[bool, str]:
@@ -68,5 +84,5 @@ def safe_git_status(session_id: str) -> Tuple[bool, str]:
 
 
 def safe_git_diff(session_id: str) -> Tuple[bool, str]:
-    rc, out, _err = run_command(session_id, "git diff --stat")
+    rc, out, _err = run_command(session_id, "git diff")
     return rc == 0, out

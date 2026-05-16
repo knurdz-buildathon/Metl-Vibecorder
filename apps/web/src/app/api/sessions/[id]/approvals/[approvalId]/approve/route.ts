@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { callAgentGenerate } from "@/lib/orchestrator";
 import { publishEvent } from "@/lib/events";
+import { persistAgentResult, runRepairLoop, runReviewAndReport } from "@/lib/workflow";
 
 export async function POST(
   request: Request,
@@ -24,7 +25,10 @@ export async function POST(
       });
       publishEvent(sessionId, "status_change", { status: "implementing" });
 
-      const session = await prisma.session.findUnique({ where: { id: sessionId } });
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+        include: { workspace: true },
+      });
       if (session) {
         void (async () => {
           try {
@@ -33,7 +37,9 @@ export async function POST(
               mode: "agent",
               user_prompt: session.userPrompt,
               approved_plan: approval.body,
+              repo_path: session.workspace?.repoPath,
             });
+            await persistAgentResult(sessionId, "AGENT", result);
 
             const responseMessage = result.message || result.summary || "";
             if (responseMessage) {
@@ -48,13 +54,16 @@ export async function POST(
               publishEvent(sessionId, "new_message", { role: "assistant", content: responseMessage });
             }
 
-            const completionStatus = result.completion_status || "done";
-            let nextStatus = "completed";
-            if (completionStatus === "needs_repair") {
-              nextStatus = "repairing";
-            } else if (completionStatus === "needs_approval") {
-              nextStatus = "awaiting_plan_approval";
+            let finalResult = result;
+            if (result.completion_status === "needs_repair") {
+              finalResult = await runRepairLoop(session, result);
             }
+            await runReviewAndReport(session, finalResult);
+
+            const nextStatus =
+              finalResult?.status === "error" || finalResult?.completion_status === "needs_repair"
+                ? "failed"
+                : "completed";
 
             await prisma.session.update({
               where: { id: sessionId },

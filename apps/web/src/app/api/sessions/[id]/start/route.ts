@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { callAgentGenerate } from "@/lib/orchestrator";
 import { publishEvent } from "@/lib/events";
+import { persistAgentResult, runRepairLoop, runReviewAndReport } from "@/lib/workflow";
 
 export async function POST(
   _request: Request,
@@ -11,7 +12,7 @@ export async function POST(
     const { id } = await params;
     const session = await prisma.session.findUnique({
       where: { id },
-      include: { messages: true },
+      include: { messages: true, workspace: true },
     });
     if (!session) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -50,7 +51,9 @@ export async function POST(
           mode: modeStr.toLowerCase(),
           user_prompt: session.userPrompt,
           project_context: contextMessages,
+          repo_path: session.workspace?.repoPath,
         });
+        await persistAgentResult(id, modeStr, result);
 
         publishEvent(id, "agent_call_complete", { result });
 
@@ -70,11 +73,37 @@ export async function POST(
 
         // Handle plan approval mode
         if (modeStr === "PLAN" && result?.plan) {
+          await prisma.approvalRequest.create({
+            data: {
+              sessionId: id,
+              type: "PLAN",
+              title: "Implementation plan",
+              body: result.plan,
+            },
+          });
           await prisma.session.update({
             where: { id },
-            data: { status: "awaiting_plan_approval" as any },
+            data: {
+              status: "awaiting_plan_approval" as any,
+              planMarkdown: result.plan,
+            },
           });
           publishEvent(id, "awaiting_approval", { type: "plan" });
+        } else if (modeStr === "AGENT") {
+          let finalResult = result;
+          if (result?.completion_status === "needs_repair") {
+            finalResult = await runRepairLoop(session, result);
+          }
+          await runReviewAndReport(session, finalResult);
+          const finalStatus =
+            finalResult?.status === "error" || finalResult?.completion_status === "needs_repair"
+              ? "failed"
+              : "completed";
+          await prisma.session.update({
+            where: { id },
+            data: { status: finalStatus as any },
+          });
+          publishEvent(id, "status_change", { status: finalStatus });
         } else {
           await prisma.session.update({
             where: { id },

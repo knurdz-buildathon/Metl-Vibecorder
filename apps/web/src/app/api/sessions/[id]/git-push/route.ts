@@ -1,11 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { exec } from "child_process";
-import { promisify } from "util";
+import path from "path";
+import simpleGit from "simple-git";
+import { prisma } from "@/lib/db";
 
-const execAsync = promisify(exec);
-const WORKSPACE_BASE_DIR = process.env.WORKSPACE_BASE_DIR || "./workspace-volumes";
+const WORKSPACE_BASE_DIR = path.resolve(process.env.WORKSPACE_BASE_DIR || "./workspace-volumes");
 
 export async function POST(
   request: Request,
@@ -15,41 +15,36 @@ export async function POST(
     const { id } = await params;
     const body = await request.json();
     const { commitMessage = "VibeCoder: apply changes", push = false, branch = "main" } = body;
-    const repoDir = `${WORKSPACE_BASE_DIR}/${id}`;
-
-    const git = (cmd: string) =>
-      execAsync(`cd ${repoDir} && ${cmd}`, { timeout: 30_000 });
+    const workspace = await prisma.workspace.findUnique({ where: { sessionId: id } });
+    const repoDir = workspace?.repoPath || path.join(WORKSPACE_BASE_DIR, id, "repo");
+    const git = simpleGit({ baseDir: repoDir, binary: "git", maxConcurrentProcesses: 1 });
 
     // Configure git if not already set
-    try {
-      await git(`git config user.email || git config user.email "vibecoder@metl.dev"`);
-      await git(`git config user.name || git config user.name "VibeCoder Agent"`);
-    } catch {
-      // ignore config check errors
-    }
+    await git.addConfig("user.email", "vibecoder@metl.dev");
+    await git.addConfig("user.name", "VibeCoder Agent");
 
     // Stage all changes
-    await git("git add -A");
+    await git.add(".");
 
     // Check if there are changes to commit
-    const { stdout: diffStat } = await git("git diff --cached --stat");
-    if (!diffStat.trim()) {
+    const status = await git.status();
+    if (status.files.length === 0) {
       return NextResponse.json({ committed: false, reason: "No changes to commit" });
     }
 
     // Commit
-    await git(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`);
+    const commit = await git.commit(commitMessage);
 
     let pushResult: any = null;
     if (push) {
-      const { stdout, stderr } = await git(`git push origin ${branch}`).catch((e: any) => ({
-        stdout: "",
-        stderr: e.message,
-      }));
-      pushResult = { stdout, stderr: stderr || null };
+      try {
+        pushResult = await git.push("origin", branch);
+      } catch (e: any) {
+        pushResult = { error: e.message };
+      }
     }
 
-    return NextResponse.json({ committed: true, pushResult });
+    return NextResponse.json({ committed: true, commit, pushResult });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

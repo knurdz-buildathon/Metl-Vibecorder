@@ -14,7 +14,6 @@ Rules:
 
 Output format:
 {
-  "reasoning": "string",
   "quality_summary": "string",
   "risks": ["string"],
   "skipped_checks": ["string"],

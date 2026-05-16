@@ -16,7 +16,6 @@ Rules:
 
 Output format:
 {
-  "reasoning": "string",
   "root_cause": "string",
   "file_edits": [
     {"path": "string", "content": "string", "operation": "modify"}

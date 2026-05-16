@@ -16,6 +16,8 @@ export async function GET(
         fileChanges: { orderBy: { createdAt: "asc" } },
         agentRuns: true,
         approvalRequests: true,
+        workspace: true,
+        finalReport: true,
       },
     });
     if (!session) {

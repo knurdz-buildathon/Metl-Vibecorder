@@ -24,7 +24,7 @@ Your job is to understand a project, generate or modify code safely, and explain
 
 ## Output Format
 Return structured JSON with:
-- reasoning: string (your internal reasoning)
+- summary: string
 - file_edits: array of {path, content, operation: create|modify|delete}
 - commands: array of {command, description, cwd}
 - tests: array of {command, description}

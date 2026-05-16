@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { subscribeToEvents } from "@/lib/events";
+import { prisma } from "@/lib/db";
 
 export async function GET(
   _request: Request,
@@ -22,6 +23,23 @@ export async function GET(
       };
 
       send({ type: "connected", sessionId: id });
+      void prisma.sessionEvent
+        .findMany({
+          where: { sessionId: id },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+        })
+        .then((events) => {
+          events.reverse().forEach((evt) => {
+            send({
+              sessionId: id,
+              type: evt.type,
+              payload: evt.payload || {},
+              replayed: true,
+            });
+          });
+        })
+        .catch(() => undefined);
 
       const handler = (evt: any) => {
         send(evt);

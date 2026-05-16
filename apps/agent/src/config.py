@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     gemini_model: str = "gemini-3.1-pro-preview-customtools"
     gemini_review_model: str = "gemini-3.1-pro-preview"
-    gemini_fast_model: str = "gemini-2.5-flash"
+    gemini_fast_model: str = "gemini-3.1-flash-lite"
     gemini_stable_fallback_model: str = "gemini-2.5-pro"
     gemini_max_output_tokens: int = 8192
 

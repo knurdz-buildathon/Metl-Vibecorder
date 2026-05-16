@@ -19,7 +19,7 @@ Rules:
 
 Output format:
 {
-  "reasoning": "string",
+  "summary": "string",
   "file_edits": [
     {"path": "string", "content": "string", "operation": "create|modify|delete"}
   ],

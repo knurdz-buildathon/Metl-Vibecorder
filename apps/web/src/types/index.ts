@@ -31,6 +31,22 @@ export interface Session {
   userPrompt: string;
   workspaceId?: string;
   workspaceUrl?: string;
+  workspace?: Workspace;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Workspace {
+  id: string;
+  sessionId: string;
+  provider: string;
+  containerId?: string;
+  rootPath: string;
+  repoPath: string;
+  internalPath: string;
+  ideUrl?: string;
+  previewUrl?: string;
+  status: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,6 +68,9 @@ export interface CheckRun {
   command: string;
   stdout?: string;
   stderr?: string;
+  summary?: string;
+  error?: string;
+  durationMs?: number;
   createdAt: string;
 }
 

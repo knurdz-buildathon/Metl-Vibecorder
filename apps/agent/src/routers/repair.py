@@ -21,6 +21,7 @@ class RepairResponse(BaseModel):
     fixed: bool
     summary: str
     files_changed: List[dict] = []
+    check_results: List[dict] = []
     next_action: Optional[str] = None
     attempt: int = 1
     completion_status: str = "done"
@@ -43,6 +44,8 @@ async def repair(request: RepairRequest):
         status=result.get("status", "ok"),
         fixed=result.get("fixed", False),
         summary=result.get("summary", ""),
+        files_changed=result.get("files_changed", []),
+        check_results=result.get("check_results", []),
         attempt=request.attempt,
         next_action="retry" if needs_more else "manual_fix" if not result.get("fixed") else "done",
         completion_status=result.get("completion_status", "done"),

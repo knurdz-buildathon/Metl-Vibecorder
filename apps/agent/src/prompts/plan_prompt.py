@@ -15,7 +15,6 @@ Rules:
 
 Output format:
 {
-  "reasoning": "string",
   "plan": {
     "summary": "string",
     "steps": [

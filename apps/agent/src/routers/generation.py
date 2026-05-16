@@ -16,6 +16,7 @@ class GenerateRequest(BaseModel):
     approved_plan: Optional[str] = None
     error_logs: Optional[str] = None
     attempt: Optional[int] = None
+    files_changed: List[str] = []
 
 
 class GenerateResponse(BaseModel):
@@ -26,6 +27,7 @@ class GenerateResponse(BaseModel):
     files_changed: List[dict] = []
     commands_run: List[str] = []
     tests_to_run: List[str] = []
+    check_results: List[dict] = []
     risks: List[str] = []
     next_action: Optional[str] = None
     completion_status: str = "done"
@@ -64,5 +66,10 @@ async def generate(request: GenerateRequest):
         message=message,
         plan=result.get("plan"),
         files_changed=result.get("files_changed", []),
+        commands_run=result.get("commands_run", []),
+        tests_to_run=result.get("tests_to_run", []),
+        check_results=result.get("check_results", []),
+        risks=result.get("risks", []),
+        next_action=result.get("next_action"),
         completion_status=result.get("completion_status", "done"),
     )

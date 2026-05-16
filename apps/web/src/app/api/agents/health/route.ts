@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  // TODO: call Python agent /health endpoint
   const agentUrl = process.env.AGENT_SERVICE_URL || "http://localhost:8000";
   let agentHealthy = false;
   try {

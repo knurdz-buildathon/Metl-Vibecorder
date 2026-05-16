@@ -71,6 +71,8 @@ model Session {
   approvalRequests    ApprovalRequest[]
   finalReport         FinalReport?
   integrationCalls    IntegrationCall[]
+  workspace           Workspace?
+  events              SessionEvent[]
 
   @@map("sessions")
 }
@@ -179,6 +181,10 @@ model CheckRun {
   command   String
   stdout    String?    @db.Text
   stderr    String?    @db.Text
+  durationMs Int?      @map("duration_ms")
+  summary   String?    @db.Text
+  artifacts Json?
+  error     String?    @db.Text
   createdAt DateTime   @default(now()) @map("created_at")
 
   @@map("check_runs")
@@ -259,6 +265,40 @@ model RestorePoint {
 }
 
 // =========================================
+// Workspaces and Events
+// =========================================
+
+model Workspace {
+  id           String   @id @default(cuid())
+  sessionId    String   @unique @map("session_id")
+  session      Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  provider     String   @default("local-docker")
+  containerId  String?  @map("container_id")
+  rootPath     String   @map("root_path")
+  repoPath     String   @map("repo_path")
+  internalPath String   @map("internal_path")
+  ideUrl       String?  @map("ide_url")
+  previewUrl   String?  @map("preview_url")
+  status       String   @default("created")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("workspaces")
+}
+
+model SessionEvent {
+  id        String   @id @default(cuid())
+  sessionId String   @map("session_id")
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  type      String
+  payload   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sessionId, createdAt])
+  @@map("session_events")
+}
+
+// =========================================
 // Approval Requests
 // =========================================
 
@@ -303,6 +343,7 @@ model FinalReport {
   risks               String[]
   readiness           String
   nextSteps           String?   @map("next_steps") @db.Text
+  markdown            String?   @db.Text
   createdAt           DateTime  @default(now()) @map("created_at")
 
   @@map("final_reports")

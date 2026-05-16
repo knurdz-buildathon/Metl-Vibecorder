@@ -3,10 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createWorkspace } from "@/lib/workspace";
-import { exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
+import simpleGit from "simple-git";
 
 export async function POST(request: Request) {
   try {
@@ -16,6 +13,9 @@ export async function POST(request: Request) {
 
     if (!repoUrl) {
       return NextResponse.json({ error: "Missing repoUrl" }, { status: 400 });
+    }
+    if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(?:\.git)?$/.test(repoUrl)) {
+      return NextResponse.json({ error: "Only HTTPS GitHub repository URLs are supported" }, { status: 400 });
     }
 
     await prisma.user.upsert({
@@ -48,17 +48,43 @@ export async function POST(request: Request) {
 
     // Start workspace
     const workspace = await createWorkspace(session.id);
+    await prisma.workspace.upsert({
+      where: { sessionId: session.id },
+      create: {
+        sessionId: session.id,
+        provider: "local-docker",
+        containerId: workspace.containerId || null,
+        rootPath: workspace.rootPath,
+        repoPath: workspace.repoPath,
+        internalPath: workspace.internalPath,
+        ideUrl: workspace.url || null,
+        previewUrl: workspace.previewUrl || null,
+        status: workspace.status,
+      },
+      update: {
+        containerId: workspace.containerId || null,
+        rootPath: workspace.rootPath,
+        repoPath: workspace.repoPath,
+        internalPath: workspace.internalPath,
+        ideUrl: workspace.url || null,
+        previewUrl: workspace.previewUrl || null,
+        status: workspace.status,
+      },
+    });
     if (workspace.url) {
       await prisma.session.update({
         where: { id: session.id },
-        data: { workspaceUrl: workspace.url, status: "repo_cloning" as any },
+        data: {
+          workspaceId: workspace.containerId,
+          workspaceUrl: workspace.url,
+          status: "repo_cloning" as any,
+        },
       });
     }
 
     // Git clone inside workspace volume
-    const workspaceDir = `../workspace-volumes/${session.id}`;
     try {
-      await execAsync(`git clone --depth 1 ${repoUrl} ${workspaceDir}/repo`);
+      await simpleGit().clone(repoUrl, workspace.repoPath, ["--depth", "1"]);
       await prisma.session.update({
         where: { id: session.id },
         data: { status: "repo_analyzing" as any },

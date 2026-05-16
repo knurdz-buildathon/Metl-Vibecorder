@@ -13,7 +13,6 @@ Rules:
 
 Output format:
 {
-  "reasoning": "string",
   "answer": "string",
   "references": ["path/to/file.ts:line"],
   "completion_status": "done"
