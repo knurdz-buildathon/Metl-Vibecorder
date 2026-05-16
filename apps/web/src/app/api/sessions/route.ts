@@ -52,13 +52,18 @@ export async function POST(request: Request) {
       },
     });
 
-    // Create Docker workspace and persist URL
-    const workspace = await createWorkspace(session.id);
-    if (workspace.url) {
-      await prisma.session.update({
-        where: { id: session.id },
-        data: { workspaceUrl: workspace.url },
-      });
+    // Create Docker workspace and persist URL (non-blocking)
+    let workspace: any = { url: null };
+    try {
+      workspace = await createWorkspace(session.id);
+      if (workspace?.url) {
+        await prisma.session.update({
+          where: { id: session.id },
+          data: { workspaceUrl: workspace.url },
+        });
+      }
+    } catch (err: any) {
+      console.warn("Workspace creation skipped:", err.message);
     }
 
     await prisma.chatMessage.create({
