@@ -16,6 +16,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@cursor/sdk": "^1.0.13",
     "@google/genai": "^1.43.0",
     "dotenv": "^17.2.3"
   },
