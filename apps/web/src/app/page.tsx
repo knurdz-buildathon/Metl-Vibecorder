@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession, signIn } from "next-auth/react";
 import Link from "next/link";
-import { Plus, Clock, Activity, Code2, GitBranch, ArrowRight } from "lucide-react";
+import { Plus, Clock, Activity, Code2, GitBranch, ArrowRight, LogIn } from "lucide-react";
 import { getHealth, getModelHealth, getAgentHealth } from "@/lib/api";
 
 interface SessionSummary {
@@ -14,6 +15,7 @@ interface SessionSummary {
 }
 
 export default function HomePage() {
+  const { data: session } = useSession();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [stats, setStats] = useState({ total: 0, completed: 0, failed: 0 });
   const [health, setHealth] = useState({ web: false, model: false, agent: false });
@@ -57,22 +59,39 @@ export default function HomePage() {
         </p>
 
         <div className="flex justify-center gap-4 mb-8">
-          <Link
-            href="/sessions/new"
-            className="rounded-lg bg-white text-black px-6 py-3 font-semibold hover:bg-zinc-200 transition-colors flex items-center gap-2"
-          >
-            <Plus size={18} />
-            New Workspace
-          </Link>
-          <a
-            href="https://github.com/knurdz-buildathon/Metl-Vibecorder"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-lg border border-zinc-700 px-6 py-3 font-semibold hover:bg-zinc-800 transition-colors flex items-center gap-2"
-          >
-            <GitBranch size={16} />
-            GitHub
-          </a>
+          {session?.user ? (
+            <>
+              <Link
+                href="/sessions/new"
+                className="rounded-lg bg-white text-black px-6 py-3 font-semibold hover:bg-zinc-200 transition-colors flex items-center gap-2"
+              >
+                <Plus size={18} />
+                New Workspace
+              </Link>
+              <Link
+                href="/projects"
+                className="rounded-lg border border-zinc-700 px-6 py-3 font-semibold hover:bg-zinc-800 transition-colors"
+              >
+                Projects
+              </Link>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => signIn("github", { callbackUrl: "/" })}
+                className="rounded-lg bg-white text-black px-6 py-3 font-semibold hover:bg-zinc-200 transition-colors flex items-center gap-2"
+              >
+                <LogIn size={18} />
+                Sign in with GitHub
+              </button>
+              <Link
+                href="/sessions/new"
+                className="rounded-lg border border-zinc-700 px-6 py-3 font-semibold hover:bg-zinc-800 transition-colors"
+              >
+                Try as Guest
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Provider Status */}

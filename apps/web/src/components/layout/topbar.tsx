@@ -2,6 +2,7 @@
 
 import { Wifi, WifiOff, Loader2 } from "lucide-react";
 import type { SessionStatus } from "@/types";
+import UserAvatar from "@/components/auth/user-avatar";
 
 interface TopbarProps {
   title?: string;
@@ -48,6 +49,7 @@ export default function Topbar({ title, workspaceConnected, status }: TopbarProp
       </div>
       <div className="flex items-center gap-3">
         <WorkspaceIndicator connected={workspaceConnected} />
+        <UserAvatar />
       </div>
     </div>
   );
