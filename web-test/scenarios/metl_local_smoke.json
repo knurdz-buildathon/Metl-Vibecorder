@@ -1,0 +1,11 @@
+{
+  "name": "Metl local smoke",
+  "checks": [
+    {
+      "type": "selector_visible",
+      "selector": "body",
+      "label": "page body"
+    }
+  ],
+  "link_sample_limit": 15
+}
