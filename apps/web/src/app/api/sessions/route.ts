@@ -16,9 +16,34 @@ export async function POST(request: Request) {
     const body = await request.json();
     const mode = (body.mode || "AGENT") as SessionMode;
 
+    let projectId = body.projectId;
+    if (!projectId) {
+      // Ensure a guest user exists for unauthenticated sessions
+      const guestUser = await prisma.user.upsert({
+        where: { id: "guest" },
+        create: { id: "guest", email: "guest@metl.dev", name: "Guest", image: null },
+        update: {},
+      });
+
+      const project = await prisma.project.create({
+        data: {
+          name: body.name || "Untitled Session",
+          description: body.userPrompt?.slice(0, 200) || "Auto-created session project",
+          userId: guestUser.id,
+        },
+      });
+      projectId = project.id;
+    } else {
+      // Verify the project exists
+      const existing = await prisma.project.findUnique({ where: { id: projectId } });
+      if (!existing) {
+        return NextResponse.json({ error: "Project not found" }, { status: 400 });
+      }
+    }
+
     const session = await prisma.session.create({
       data: {
-        projectId: body.projectId || "default",
+        projectId,
         mode: mode as any,
         status: "created",
         userPrompt: body.userPrompt,

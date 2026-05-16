@@ -13,15 +13,22 @@
 
 const BASE = "http://localhost:3000";
 
-async function post(path: string, body: object) {
-  const res = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`POST ${path} failed: ${res.status} ${JSON.stringify(data)}`);
-  return data;
+async function post(path: string, body: object, timeoutMs = 120_000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`POST ${path} failed: ${res.status} ${JSON.stringify(data)}`);
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function get(path: string) {
@@ -37,6 +44,8 @@ function sleep(ms: number) {
 
 async function runE2E() {
   console.log("[E2E] Starting flow...\n");
+
+  const startTime = Date.now();
 
   // 1. Create session
   console.log("[1/5] Creating session...");

@@ -18,6 +18,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing repoUrl" }, { status: 400 });
     }
 
+    await prisma.user.upsert({
+      where: { id: "guest" },
+      create: { id: "guest", email: "guest@metl.dev", name: "Guest", image: null },
+      update: {},
+    });
+
     const project = await prisma.project.create({
       data: {
         name: body.name || githubRepo?.split("/")[1] || "Imported Repo",
